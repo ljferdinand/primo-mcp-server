@@ -68,6 +68,21 @@ function recordIdsMatch(foundId: string, requestedId: string): boolean {
   );
 }
 
+/**
+ * Primo's creation-date range facet value, `[start TO end]` (mirrors SMU's
+ * date_range_facet_value). A lone date_from yields `[start TO start]`. Returns
+ * null for a missing or non-four-digit start, or when end < start.
+ */
+function dateRangeFacetValue(dateFrom?: string, dateTo?: string): string | null {
+  const yearRe = /^\d{4}$/;
+  const start = dateFrom?.trim();
+  if (!start || !yearRe.test(start)) return null;
+  const endTrim = dateTo?.trim();
+  const end = endTrim && yearRe.test(endTrim) ? endTrim : undefined;
+  if (end && Number(end) < Number(start)) return null;
+  return `[${start} TO ${end ?? start}]`;
+}
+
 export class PrimoClient {
   private readonly config: PrimoConfig;
   private readonly fetchImpl: FetchLike;
@@ -121,18 +136,12 @@ export class PrimoClient {
     if (options.resourceType) {
       qInclude.push(`facet_rtype,exact,${options.resourceType}`);
     }
-    if (options.dateFrom && options.dateTo) {
-      const from = Number.parseInt(options.dateFrom, 10);
-      const to = Number.parseInt(options.dateTo, 10);
-      if (Number.isFinite(from) && Number.isFinite(to) && from <= to) {
-        // Primo takes individual year facets; a range adds one per year.
-        // Wide ranges produce many facets -- flagged for the cleanup follow-up.
-        for (let year = from; year <= to; year++) {
-          qInclude.push(`facet_creationdate,exact,${year}`);
-        }
-      }
-    } else if (options.dateFrom) {
-      qInclude.push(`facet_creationdate,exact,${options.dateFrom}`);
+    // Primo's native creation-date range facet: a single facet_searchcreationdate
+    // with a [start TO end] value, instead of one facet_creationdate per year
+    // (which exploded on wide ranges).
+    const dateRange = dateRangeFacetValue(options.dateFrom, options.dateTo);
+    if (dateRange) {
+      qInclude.push(`facet_searchcreationdate,exact,${dateRange}`);
     }
     if (options.peerReviewed) {
       qInclude.push("facet_tlevel,exact,peer_reviewed");

@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { PrimoClient, PrimoApiError } from "../src/client.js";
 import { loadConfig } from "../src/config.js";
 
-// Assumes no PRIMO_ environment overrides are set (UWA defaults).
+// PRIMO_BASE_URL and PRIMO_VID come from tests/setup.ts; the remaining PRIMO_
+// variables use their built-in defaults.
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -84,12 +85,21 @@ describe("PrimoClient.search", () => {
 
     const qInclude = u.searchParams.get("qInclude") ?? "";
     expect(qInclude).toContain("facet_rtype,exact,articles");
-    expect(qInclude).toContain("facet_creationdate,exact,2020");
-    expect(qInclude).toContain("facet_creationdate,exact,2021");
-    expect(qInclude).toContain("facet_creationdate,exact,2022");
+    expect(qInclude).toContain("facet_searchcreationdate,exact,[2020 TO 2022]");
     expect(qInclude).toContain("facet_tlevel,exact,peer_reviewed");
 
     expect(resp.records.length).toBe(1);
+  });
+
+  it("emits a single-year range facet when only date_from is given", async () => {
+    let captured = "";
+    const client = makeClient(async (url) => {
+      captured = url;
+      return jsonResponse({ info: {}, docs: [] });
+    });
+    await client.search({ query: "x", dateFrom: "2019" });
+    const qInclude = new URL(captured).searchParams.get("qInclude") ?? "";
+    expect(qInclude).toContain("facet_searchcreationdate,exact,[2019 TO 2019]");
   });
 
   it("uses catalogue tab/scope when scope=catalogue", async () => {
