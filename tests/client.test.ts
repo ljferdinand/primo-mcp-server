@@ -11,12 +11,45 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function textResponse(body: string, status = 200): Response {
+  return new Response(body, {
+    status,
+    headers: { "Content-Type": "text/plain" },
+  });
+}
+
 function makeClient(
   handler: (url: string, init?: RequestInit) => Promise<Response>,
 ): PrimoClient {
   const fetchImpl = ((input: RequestInfo | URL, init?: RequestInit) =>
     handler(String(input), init)) as typeof fetch;
   return new PrimoClient(loadConfig(), fetchImpl);
+}
+
+/** Build an unsigned JWT carrying an exp claim (epoch seconds). */
+function makeJwt(expEpochSeconds: number): string {
+  const header = Buffer.from(
+    JSON.stringify({ alg: "none", typ: "JWT" }),
+  ).toString("base64url");
+  const payload = Buffer.from(
+    JSON.stringify({ exp: expEpochSeconds }),
+  ).toString("base64url");
+  return `${header}.${payload}.`;
+}
+
+/** A single direct full-display document (top-level delivery, like Primo VE). */
+function directDoc(recordId: string, title: string): unknown {
+  return {
+    context: recordId.toLowerCase().startsWith("alma") ? "L" : "PC",
+    pnx: {
+      control: { recordid: [recordId], sourcesystem: ["Alma"] },
+      display: { title },
+    },
+    delivery: {
+      deliveryCategory: ["Alma-P"],
+      availability: ["fulltext_linktorsrc"],
+    },
+  };
 }
 
 describe("PrimoClient.search", () => {
@@ -135,6 +168,92 @@ describe("PrimoClient.getRecord", () => {
   it("returns null when there are no results", async () => {
     const client = makeClient(async () => jsonResponse({ info: {}, docs: [] }));
     const rec = await client.getRecord("missing");
+    expect(rec).toBeNull();
+  });
+});
+
+describe("PrimoClient.getRecord direct full-display path", () => {
+  const futureExp = Math.floor(Date.now() / 1000) + 3600;
+
+  it("fetches directly with a guest JWT and returns the matching record", async () => {
+    const jwt = makeJwt(futureExp);
+    let directHit = false;
+    let authHeader: string | null = null;
+    const client = makeClient(async (url, init) => {
+      if (url.includes("/institution/") && url.includes("guestJwt")) {
+        expect(new URL(url).searchParams.get("isGuest")).toBe("true");
+        return textResponse(jwt);
+      }
+      if (url.includes("/pnxs/L/")) {
+        directHit = true;
+        authHeader = new Headers(init?.headers).get("Authorization");
+        return jsonResponse(directDoc("alma991", "Direct Hit"));
+      }
+      return jsonResponse({ info: {}, docs: [] });
+    });
+
+    const rec = await client.getRecord("alma991");
+    expect(directHit).toBe(true);
+    expect(authHeader).toBe(`Bearer ${jwt}`);
+    expect(rec?.recordId).toBe("alma991");
+    expect(rec?.title).toBe("Direct Hit");
+  });
+
+  it("refreshes the guest JWT once on a 401 and retries", async () => {
+    const jwt1 = makeJwt(futureExp);
+    const jwt2 = makeJwt(futureExp + 60);
+    let jwtCalls = 0;
+    const client = makeClient(async (url, init) => {
+      if (url.includes("guestJwt")) {
+        jwtCalls += 1;
+        return textResponse(jwtCalls === 1 ? jwt1 : jwt2);
+      }
+      if (url.includes("/pnxs/L/")) {
+        const auth = new Headers(init?.headers).get("Authorization");
+        if (auth === `Bearer ${jwt1}`) return jsonResponse({}, 401);
+        return jsonResponse(directDoc("alma991", "After Refresh"));
+      }
+      return jsonResponse({ info: {}, docs: [] });
+    });
+
+    const rec = await client.getRecord("alma991");
+    expect(jwtCalls).toBe(2);
+    expect(rec?.title).toBe("After Refresh");
+  });
+
+  it("falls back to a match-only search when the guest token is unavailable", async () => {
+    const client = makeClient(async (url) => {
+      if (url.includes("guestJwt")) return jsonResponse({}, 500);
+      return jsonResponse({
+        info: {},
+        docs: [
+          { pnx: { control: { recordid: ["alma000"] }, display: { title: "Decoy" } } },
+          { pnx: { control: { recordid: ["alma991"] }, display: { title: "Found" } } },
+        ],
+      });
+    });
+
+    const rec = await client.getRecord("alma991");
+    expect(rec?.recordId).toBe("alma991");
+    expect(rec?.title).toBe("Found");
+  });
+
+  it("returns null rather than a mismatched record", async () => {
+    const jwt = makeJwt(futureExp);
+    const client = makeClient(async (url) => {
+      if (url.includes("guestJwt")) return textResponse(jwt);
+      // Direct endpoint yields no usable pnx, forcing the search fallback;
+      // the fallback then sees only a non-matching record.
+      if (/\/pnxs\/(L|PC)\//.test(url)) return jsonResponse({ info: {}, docs: [] });
+      return jsonResponse({
+        info: {},
+        docs: [
+          { pnx: { control: { recordid: ["alma777"] }, display: { title: "Wrong" } } },
+        ],
+      });
+    });
+
+    const rec = await client.getRecord("alma991");
     expect(rec).toBeNull();
   });
 });

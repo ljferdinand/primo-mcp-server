@@ -13,6 +13,12 @@ export interface PrimoConfig {
   // Institution-specific
   baseUrl: string;
   vid: string;
+  /**
+   * Institution code for the guest-token endpoint, e.g. "01PITT_INST".
+   * Optional: when unset, it is derived from the VID prefix (the part before
+   * the first colon), which is correct for standard Primo VE view IDs.
+   */
+  institutionCode: string;
   institutionName: string;
   /** Discovery brand shown to users, e.g. "OneSearch", "PittCat". */
   discoveryName: string;
@@ -54,6 +60,10 @@ export function loadConfig(): PrimoConfig {
       "https://onesearch.library.uwa.edu.au/primaws/rest/pub",
     ),
     vid: envStr("VID", "61UWA_INST:NDE_UWA"),
+    // Empty by default: the client derives it from the VID prefix. Set
+    // PRIMO_INSTITUTION_CODE only if your guest-token institution code
+    // differs from the VID prefix.
+    institutionCode: envStr("INSTITUTION_CODE", ""),
     institutionName,
     // Defaults to the institution name per the 2026-07-28 decision;
     // set PRIMO_DISCOVERY_NAME to the discovery brand (e.g. "PittCat").
