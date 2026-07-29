@@ -15,7 +15,7 @@ key. This is the same access class as an ordinary catalogue search in a browser.
 
 | Tool | Description |
 |------|-------------|
-| `primo_search` | Search the catalogue with optional filters (field, scope, type, date range, peer-reviewed) |
+| `primo_search` | Search the catalogue with optional filters (field, scope, type, date range, peer-reviewed, availability) |
 | `primo_get_record` | Full details for one record by ID |
 | `primo_suggest` | Autocomplete suggestions |
 | `primo_cite` | Citations in APA 7, Harvard, Chicago, IEEE, or Vancouver |
@@ -99,6 +99,7 @@ elsewhere. Values set in the process environment are never overridden by `.env`.
 | `PRIMO_DEFAULT_RESULTS` | `10` | Default result count when `limit` is omitted |
 | `PRIMO_LANGUAGE` | `en` | UI language code |
 | `PRIMO_USER_AGENT` | `primo-mcp-server/0.1.0` | User-Agent sent with requests |
+| `PRIMO_INCLUDE_UNAVAILABLE` | `true` | Default for the `include_unavailable` search argument: `true` includes records with no full-text access (Primo's expanded search), `false` restricts to available material |
 
 ### Finding your Primo settings
 
@@ -148,6 +149,41 @@ From a conversation:
 - "Get the full details for record `cdi_crossref_primary_10_1234`."
 - "Generate APA 7 citations for these records."
 - "Export the search results as BibTeX."
+
+## Search scope and tactics
+
+A few notes on how Primo behaves through this server that help searches land.
+
+**Scope: `catalogue` versus `everything`.** `catalogue` searches your
+institution's local holdings only, so it answers "do we hold this?".
+`everything` adds the Central Discovery Index: article-level records and
+material from subscribed databases and open sources (HathiTrust and other
+aggregators), so besides broad discovery it doubles as a signal for a freely
+available digital copy. If your institution runs several libraries on a single
+Primo instance, `catalogue` scope spans all of them; results are not limited to
+one library, and which library holds an item is visible only on the full
+record.
+
+**Availability: the `include_unavailable` toggle (`primo_search`).** This maps
+to Primo's `pcAvailability`. The default is broad and includes records the
+institution has no full-text access to; set `include_unavailable: false` to
+restrict results to currently-available material. Because this server uses an
+unauthenticated guest view, results can under-report what a signed-in affiliate
+would see, so the broad default avoids hiding items the institution actually
+holds. Narrow it when you specifically want an access-only cut. The default is
+configurable with `PRIMO_INCLUDE_UNAVAILABLE`.
+
+**Query tactics.**
+
+- For a work with a non-English title, a `creator`-field search often succeeds
+  where a title search returns nothing, because the item may be held only under
+  a translated or English title. Try creator-first for foreign-language works.
+- Keep the author out of the title field. A title search with a trailing
+  surname tends to return zero, because the surname is not in the title index.
+- Relevance matching is loose. A single title search can surface look-alikes by
+  other authors, and generic titles produce false "held" hits. Recheck
+  zero-result and generic-title searches with an author-scoped query before
+  concluding whether an item is held.
 
 ## Development
 
