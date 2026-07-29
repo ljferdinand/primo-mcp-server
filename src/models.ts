@@ -166,14 +166,15 @@ export function recordFromApiDoc(doc: Json): PrimoRecord {
   const addata = asObject(pnx.addata);
   const delivery = asObject(pnx.delivery);
 
-  // DOI from identifiers: case-insensitive presence check, then split on the
-  // literal "DOI:" and strip any trailing Primo "$$" subfield delimiters from
-  // the value, the same quirk handled for the display fields.
+  // DOI from identifiers: split on the literal "DOI:" prefix case-insensitively
+  // (records may carry it lower-case, e.g. "doi:10..."), take the text after it,
+  // and strip any trailing Primo "$$" subfield delimiters, the same quirk
+  // handled for the display fields.
   const identifiers = toList(display.identifier);
   let doi = "";
   for (const ident of identifiers) {
-    if (ident.toUpperCase().includes("DOI:")) {
-      const parts = ident.split("DOI:");
+    const parts = ident.split(/doi:/i);
+    if (parts.length > 1) {
       doi = stripSubfields(parts[parts.length - 1]);
       break;
     }
@@ -284,7 +285,10 @@ export function recordFromApiDoc(doc: Json): PrimoRecord {
     risType: firstOrEmpty(addata.ristype),
     authorsStructured: toList(addata.au),
 
-    fulltextAvailable: String(delivery.fulltext ?? "").includes("fulltext"),
+    fulltextAvailable: toList(delivery.fulltext).some((v) => {
+      const s = v.toLowerCase();
+      return s.includes("fulltext") && !s.includes("no_fulltext");
+    }),
     deliveryCategory: firstOrEmpty(delivery.delcategory),
     holdings,
 

@@ -77,6 +77,13 @@ describe("recordFromApiDoc", () => {
     expect(r.identifiers).toEqual(["ISBN 9780123456789", "DOI: 10.1234/abcd"]);
   });
 
+  it("extracts a lower-case doi: prefix and strips the prefix", () => {
+    const rec = recordFromApiDoc({
+      pnx: { display: { identifier: ["doi: 10.9999/xyz"] } },
+    });
+    expect(rec.doi).toBe("10.9999/xyz");
+  });
+
   it("detects peer review and parses the numeric score", () => {
     expect(r.peerReviewed).toBe(true);
     expect(r.score).toBe(12.5);
@@ -94,6 +101,17 @@ describe("recordFromApiDoc", () => {
   it("flags full text and reads the year", () => {
     expect(r.fulltextAvailable).toBe(true);
     expect(r.creationDate).toBe("2021");
+  });
+
+  it("treats no_fulltext as unavailable but a fulltext token as available", () => {
+    const no = recordFromApiDoc({
+      pnx: { display: { title: "T" }, delivery: { fulltext: "no_fulltext" } },
+    });
+    expect(no.fulltextAvailable).toBe(false);
+    const yes = recordFromApiDoc({
+      pnx: { display: { title: "T" }, delivery: { fulltext: ["fulltext"] } },
+    });
+    expect(yes.fulltextAvailable).toBe(true);
   });
 
   it("falls back to addata.date and addata.abstract when display is absent", () => {
