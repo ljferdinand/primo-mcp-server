@@ -26,8 +26,7 @@ export function toList(value: Json): string[] {
 
 /** First element of a normalised list, or empty string. */
 export function firstOrEmpty(value: Json): string {
-  const items = toList(value);
-  return items.length > 0 ? items[0] : "";
+  return toList(value)[0] ?? "";
 }
 
 function toNumber(value: Json, fallback: number): number {
@@ -175,7 +174,7 @@ export function recordFromApiDoc(doc: Json): PrimoRecord {
   for (const ident of identifiers) {
     const parts = ident.split(/doi:/i);
     if (parts.length > 1) {
-      doi = stripSubfields(parts[parts.length - 1]);
+      doi = stripSubfields(parts[parts.length - 1] ?? "");
       break;
     }
   }
