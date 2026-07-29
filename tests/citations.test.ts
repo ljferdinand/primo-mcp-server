@@ -84,9 +84,9 @@ describe("formatCitation - exact style output (parity)", () => {
     );
   });
 
-  it("Chicago article (mirrors the upstream double-period after initials)", () => {
+  it("Chicago article (terminal period de-duplicated after the author initial)", () => {
     expect(formatCitation(article, "chicago")).toBe(
-      'Smith, J. A., and Doe, J.. "Deep Learning." *Journal of AI* 12, no. 3 (2021): 45-67. https://doi.org/10.1/x',
+      'Smith, J. A., and Doe, J. "Deep Learning." *Journal of AI* 12, no. 3 (2021): 45-67. https://doi.org/10.1/x',
     );
   });
 
@@ -110,27 +110,25 @@ describe("formatCitation - exact style output (parity)", () => {
 });
 
 describe("book place of publication (per-style)", () => {
-  // The publisher "Appleton & Co." ends in a period, so the APA and Harvard
-  // book formatters (which append a bare terminal period after the publisher)
-  // produce a double period, e.g. "Appleton & Co..". This is the same
-  // terminal-period quirk the codebase already carries for author initials
-  // (see the Chicago article golden above) and is flagged in citations.ts for
-  // a separate cleanup. These goldens lock the current behaviour.
+  // Place of publication is kept for Chicago, IEEE, and Vancouver and dropped
+  // for APA 7 and Cite Them Right Harvard (13th ed.). Terminal periods are
+  // de-duplicated, so a publisher ending in "Co." does not gain a second dot
+  // and a Chicago author initial is not doubled.
   it("APA 7 drops the place of publication", () => {
     expect(formatCitation(bookWithPlace, "apa7")).toBe(
-      "Bramwell, B. (1884). *Diseases of the Heart*. Appleton & Co..",
+      "Bramwell, B. (1884). *Diseases of the Heart*. Appleton & Co.",
     );
   });
 
   it("Harvard (Cite Them Right 13th ed.) drops the place of publication", () => {
     expect(formatCitation(bookWithPlace, "harvard")).toBe(
-      "Bramwell, B. (1884) *Diseases of the Heart*, Appleton & Co..",
+      "Bramwell, B. (1884) *Diseases of the Heart*, Appleton & Co.",
     );
   });
 
   it("Chicago keeps place as 'Place: Publisher'", () => {
     expect(formatCitation(bookWithPlace, "chicago")).toBe(
-      "Bramwell, B.. *Diseases of the Heart*. New York: Appleton & Co., 1884.",
+      "Bramwell, B. *Diseases of the Heart*. New York: Appleton & Co., 1884.",
     );
   });
 
@@ -155,8 +153,34 @@ describe("book place of publication (per-style)", () => {
       publisher: "Appleton & Co.",
     });
     expect(formatCitation(noPlace, "chicago")).toBe(
-      "Bramwell, B.. *Diseases of the Heart*. Appleton & Co., 1884.",
+      "Bramwell, B. *Diseases of the Heart*. Appleton & Co., 1884.",
     );
+  });
+});
+
+describe("terminal-period de-duplication", () => {
+  it("does not double a publisher already ending in a period (APA)", () => {
+    const r = rec({
+      resourceType: "book",
+      creators: ["Doe, Jane"],
+      creationDate: "2020",
+      title: "T",
+      publisher: "Random House, Inc.",
+    });
+    expect(formatCitation(r, "apa7")).toBe(
+      "Doe, J. (2020). *T*. Random House, Inc.",
+    );
+  });
+
+  it("still adds a period to a publisher that lacks one (APA)", () => {
+    const r = rec({
+      resourceType: "book",
+      creators: ["Doe, Jane"],
+      creationDate: "2020",
+      title: "T",
+      publisher: "Uni Press",
+    });
+    expect(formatCitation(r, "apa7")).toBe("Doe, J. (2020). *T*. Uni Press.");
   });
 });
 

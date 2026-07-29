@@ -2,9 +2,10 @@
  * Citation formatting for Primo records (port of citations.py).
  * Supports APA 7th, Harvard, Chicago, IEEE, and Vancouver.
  *
- * Ported to exact behavioural parity with the Python, including a couple of
- * cosmetic quirks (e.g. an author initial's trailing dot can sit next to the
- * style's own period). Flagged for the cleanup follow-up.
+ * Ported from the Python for behavioural parity, with one deliberate
+ * deviation: the terminal-period doubling the Python produced (an author
+ * initial's trailing dot sitting next to the style's own period, or a
+ * publisher ending in "Co.") is de-duplicated here via terminalPeriod.
  */
 import type { PrimoRecord } from "./models.js";
 
@@ -41,6 +42,11 @@ function publisherWithPlace(record: PrimoRecord): string {
   return record.publisherPlace
     ? `${record.publisherPlace}: ${record.publisher}`
     : record.publisher;
+}
+
+/** Append a terminal period unless the string already ends with one. */
+function terminalPeriod(value: string): string {
+  return /\.$/.test(value) ? value : `${value}.`;
 }
 
 /** First-name words -> spaced initials with dots, e.g. "Jane Anne" -> "J. A." */
@@ -130,7 +136,7 @@ function citeBookApa(r: PrimoRecord): string {
   const year = yearOf(r);
   const title = stripTrailingDots(r.title);
   const parts: string[] = [`${authors} (${year}). *${title}*.`];
-  if (r.publisher) parts.push(`${r.publisher}.`);
+  if (r.publisher) parts.push(terminalPeriod(r.publisher));
   if (r.doi) parts.push(`https://doi.org/${r.doi}`);
   return parts.join(" ");
 }
@@ -159,7 +165,7 @@ function citeBookHarvard(r: PrimoRecord): string {
   const year = yearOf(r);
   const title = stripTrailingDots(r.title);
   const parts: string[] = [`${authors} (${year}) *${title}*,`];
-  if (r.publisher) parts.push(`${r.publisher}.`);
+  if (r.publisher) parts.push(terminalPeriod(r.publisher));
   return parts.join(" ");
 }
 
@@ -167,7 +173,7 @@ function citeArticleChicago(r: PrimoRecord): string {
   const authors = authorsChicago(authorsFor(r));
   const year = yearOf(r);
   const title = stripTrailingDots(r.title);
-  const parts: string[] = [`${authors}. "${title}."`];
+  const parts: string[] = [`${terminalPeriod(authors)} "${title}."`];
   if (r.journalTitle) {
     let volInfo = `*${r.journalTitle}*`;
     if (r.volume) volInfo += ` ${r.volume}`;
@@ -189,7 +195,7 @@ function citeBookChicago(r: PrimoRecord): string {
   const authors = authorsChicago(authorsFor(r));
   const year = yearOf(r);
   const title = stripTrailingDots(r.title);
-  const parts: string[] = [`${authors}. *${title}*.`];
+  const parts: string[] = [`${terminalPeriod(authors)} *${title}*.`];
   if (r.publisher) parts.push(`${publisherWithPlace(r)}, ${year}.`);
   else parts.push(`${year}.`);
   return parts.join(" ");
