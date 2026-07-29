@@ -74,3 +74,106 @@ class TestCitations:
             citation = format_citation(response.records[0], style)
             assert len(citation) > 20
             assert response.records[0].title[:20] in citation
+
+
+class TestPlaceOfPublication:
+    def _book_with_place(self) -> PrimoRecord:
+        return PrimoRecord(
+            title="Diseases of the Heart",
+            resource_type="book",
+            creators=["Bramwell, Byrom"],
+            creation_date="1884",
+            publisher="Appleton & Co.",
+            publisher_place="New York",
+        )
+
+    def test_apa_drops_place(self):
+        assert format_citation(self._book_with_place(), "apa7") == (
+            "Bramwell, B. (1884). *Diseases of the Heart*. Appleton & Co."
+        )
+
+    def test_harvard_drops_place(self):
+        assert format_citation(self._book_with_place(), "harvard") == (
+            "Bramwell, B. (1884) *Diseases of the Heart*, Appleton & Co."
+        )
+
+    def test_chicago_keeps_place(self):
+        assert format_citation(self._book_with_place(), "chicago") == (
+            "Bramwell, B. *Diseases of the Heart*. New York: Appleton & Co., 1884."
+        )
+
+    def test_ieee_keeps_place(self):
+        assert format_citation(self._book_with_place(), "ieee") == (
+            "B. Bramwell, *Diseases of the Heart*. New York: Appleton & Co., 1884."
+        )
+
+    def test_vancouver_keeps_place(self):
+        assert format_citation(self._book_with_place(), "vancouver") == (
+            "Bramwell B. Diseases of the Heart. New York: Appleton & Co.; 1884."
+        )
+
+    def test_no_place_falls_back_to_publisher_only(self):
+        record = PrimoRecord(
+            title="Diseases of the Heart",
+            resource_type="book",
+            creators=["Bramwell, Byrom"],
+            creation_date="1884",
+            publisher="Appleton & Co.",
+        )
+        assert format_citation(record, "chicago") == (
+            "Bramwell, B. *Diseases of the Heart*. Appleton & Co., 1884."
+        )
+
+
+class TestTerminalPeriod:
+    def test_apa_does_not_double_period_ending_publisher(self):
+        record = PrimoRecord(
+            title="T",
+            resource_type="book",
+            creators=["Doe, Jane"],
+            creation_date="2020",
+            publisher="Random House, Inc.",
+        )
+        assert format_citation(record, "apa7") == (
+            "Doe, J. (2020). *T*. Random House, Inc."
+        )
+
+    def test_apa_still_adds_period_to_plain_publisher(self):
+        record = PrimoRecord(
+            title="T",
+            resource_type="book",
+            creators=["Doe, Jane"],
+            creation_date="2020",
+            publisher="Uni Press",
+        )
+        assert format_citation(record, "apa7") == "Doe, J. (2020). *T*. Uni Press."
+
+    def test_chicago_book_does_not_double_author_period(self):
+        record = PrimoRecord(
+            title="Diseases of the Heart",
+            resource_type="book",
+            creators=["Bramwell, Byrom"],
+            creation_date="1884",
+            publisher="Appleton & Co.",
+        )
+        assert format_citation(record, "chicago").startswith(
+            "Bramwell, B. *Diseases of the Heart*."
+        )
+
+    def test_chicago_article_does_not_double_author_period(self):
+        record = PrimoRecord(
+            title="Deep Learning.",
+            resource_type="article",
+            creators=["Smith, Jane Anne", "Doe, John"],
+            creation_date="2021",
+            journal_title="Journal of AI",
+            volume="12",
+            issue="3",
+            start_page="45",
+            end_page="67",
+            doi="10.1/x",
+        )
+        assert format_citation(record, "chicago") == (
+            'Smith, J. A., and Doe, J. "Deep Learning." '
+            "*Journal of AI* 12, no. 3 (2021): 45-67. https://doi.org/10.1/x"
+        )

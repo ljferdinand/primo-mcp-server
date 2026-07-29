@@ -96,6 +96,23 @@ def _year(record: PrimoRecord) -> str:
     return "n.d."
 
 
+def _publisher_with_place(record: PrimoRecord) -> str:
+    """Return "Place: Publisher" when a place is present, else the publisher.
+
+    Used by the styles that retain place of publication (Chicago, IEEE,
+    Vancouver); APA 7 and Cite Them Right Harvard (13th ed.) omit place and
+    use the plain publisher.
+    """
+    if record.publisher_place:
+        return f"{record.publisher_place}: {record.publisher}"
+    return record.publisher
+
+
+def _terminal_period(value: str) -> str:
+    """Append a terminal period unless the string already ends with one."""
+    return value if value.endswith(".") else f"{value}."
+
+
 def _cite_article_apa(r: PrimoRecord) -> str:
     """APA 7 article citation."""
     authors = _authors_apa(r.authors_structured or r.creators)
@@ -129,7 +146,7 @@ def _cite_book_apa(r: PrimoRecord) -> str:
 
     parts = [f"{authors} ({year}). *{title}*."]
     if publisher:
-        parts.append(f"{publisher}.")
+        parts.append(_terminal_period(publisher))
     if r.doi:
         parts.append(f"https://doi.org/{r.doi}")
     return " ".join(parts)
@@ -168,7 +185,7 @@ def _cite_book_harvard(r: PrimoRecord) -> str:
 
     parts = [f"{authors} ({year}) *{title}*,"]
     if publisher:
-        parts.append(f"{publisher}.")
+        parts.append(_terminal_period(publisher))
     return " ".join(parts)
 
 
@@ -179,7 +196,7 @@ def _cite_article_chicago(r: PrimoRecord) -> str:
     title = r.title.rstrip(".")
     journal = r.journal_title
 
-    parts = [f'{authors}. "{title}."']
+    parts = [f'{_terminal_period(authors)} "{title}."']
     if journal:
         vol_info = f"*{journal}*"
         if r.volume:
@@ -205,9 +222,9 @@ def _cite_book_chicago(r: PrimoRecord) -> str:
     title = r.title.rstrip(".")
     publisher = r.publisher or ""
 
-    parts = [f"{authors}. *{title}*."]
+    parts = [f"{_terminal_period(authors)} *{title}*."]
     if publisher:
-        parts.append(f"{publisher}, {year}.")
+        parts.append(f"{_publisher_with_place(r)}, {year}.")
     else:
         parts.append(f"{year}.")
     return " ".join(parts)
@@ -264,7 +281,7 @@ def _cite_book_ieee(r: PrimoRecord) -> str:
 
     parts = [f"{authors_str}, *{title}*."]
     if publisher:
-        parts.append(f"{publisher}, {year}.")
+        parts.append(f"{_publisher_with_place(r)}, {year}.")
     else:
         parts.append(f"{year}.")
     return " ".join(parts)
@@ -303,7 +320,7 @@ def _cite_book_vancouver(r: PrimoRecord) -> str:
 
     parts = [f"{authors}. {title}."]
     if publisher:
-        parts.append(f"{publisher}; {year}.")
+        parts.append(f"{_publisher_with_place(r)}; {year}.")
     else:
         parts.append(f"{year}.")
     return " ".join(parts)
