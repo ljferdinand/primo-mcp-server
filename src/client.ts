@@ -361,7 +361,7 @@ export class PrimoClient {
   /**
    * The direct endpoint returns delivery data at the top level rather than
    * inside the pnx block; map it into pnx shape so the shared parser reads
-   * availability the same way it does for search results.
+   * availability and holdings the same way it does for search results.
    */
   private static mergeDirectDelivery(
     data: Record<string, unknown>,
@@ -371,9 +371,19 @@ export class PrimoClient {
     if (pnx.delivery) return data;
     const topDelivery = data.delivery;
     if (!isObject(topDelivery)) return data;
+    // The direct endpoint carries physical holdings at the top level under
+    // delivery.holding[], with a single delivery.bestlocation mirror. Carry
+    // them through so the parser can surface the owning library, call number,
+    // and status; fall back to wrapping bestlocation when holding is absent.
+    const holding = Array.isArray(topDelivery.holding)
+      ? topDelivery.holding
+      : isObject(topDelivery.bestlocation)
+        ? [topDelivery.bestlocation]
+        : [];
     const mapped = {
       delcategory: topDelivery.deliveryCategory ?? [],
       fulltext: topDelivery.availability ?? [],
+      holding,
     };
     return { ...data, pnx: { ...pnx, delivery: mapped } };
   }

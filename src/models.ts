@@ -76,6 +76,20 @@ export function stripSubfields(value: string): string {
   return firstField.replace(/^[A-Za-z0-9]/, "").trim();
 }
 
+/** A physical holding: which library holds an item, where, and its status. */
+export interface Holding {
+  /** Owning library, e.g. "Falk Library" (PNX delivery.holding[].mainLocation). */
+  library: string;
+  /** Library code, e.g. "HSLS". */
+  libraryCode: string;
+  /** Shelf location, e.g. "Rare Books (Non Circulating)". */
+  location: string;
+  /** Call number, e.g. "RC681 B815d 1884". */
+  callNumber: string;
+  /** Availability status, e.g. "available". */
+  availabilityStatus: string;
+}
+
 export interface PrimoRecord {
   // Identity
   recordId: string;
@@ -118,6 +132,12 @@ export interface PrimoRecord {
   // Availability
   fulltextAvailable: boolean;
   deliveryCategory: string;
+  /**
+   * Physical holdings (owning library, location, call number, status).
+   * Populated from the direct get_record response; usually empty for records
+   * that come from a brief search, whose delivery block is lighter.
+   */
+  holdings?: Holding[];
 
   // Relevance
   score: number;
@@ -194,6 +214,27 @@ export function recordFromApiDoc(doc: Json): PrimoRecord {
     }
   }
 
+  // Physical holdings (owning library, location, call number, status). The
+  // direct get_record response carries these under delivery.holding[] (moved
+  // into pnx.delivery by the client); brief search results carry a lighter
+  // delivery block, so this is usually empty for search results. The nested
+  // fields are plain strings in the PNX.
+  const holdingList: Json[] = Array.isArray(delivery.holding)
+    ? delivery.holding
+    : [];
+  const holdings: Holding[] = holdingList
+    .map(asObject)
+    .map((h) => ({
+      library: firstOrEmpty(h.mainLocation),
+      libraryCode: firstOrEmpty(h.libraryCode),
+      location: firstOrEmpty(h.subLocation),
+      callNumber: firstOrEmpty(h.callNumber),
+      availabilityStatus: firstOrEmpty(h.availabilityStatus),
+    }))
+    .filter(
+      (h) => h.library !== "" || h.libraryCode !== "" || h.callNumber !== "",
+    );
+
   const peerReviewed = toList(display.lds50).some((x) =>
     x.toLowerCase().includes("peer_review"),
   );
@@ -245,6 +286,7 @@ export function recordFromApiDoc(doc: Json): PrimoRecord {
 
     fulltextAvailable: String(delivery.fulltext ?? "").includes("fulltext"),
     deliveryCategory: firstOrEmpty(delivery.delcategory),
+    holdings,
 
     score,
     context,

@@ -251,3 +251,52 @@ describe("recordFromApiDoc: publisher and place of publication", () => {
     expect(rec.publisherPlace).toBe("New York");
   });
 });
+
+describe("recordFromApiDoc: holdings (owning library)", () => {
+  it("parses delivery.holding[] into holdings", () => {
+    const rec = recordFromApiDoc({
+      context: "L",
+      pnx: {
+        control: { recordid: ["alma993490"] },
+        display: { title: "Held Book" },
+        delivery: {
+          holding: [
+            {
+              mainLocation: "Falk Library",
+              libraryCode: "HSLS",
+              subLocation: "Rare Books (Non Circulating)",
+              callNumber: "RC681 B815d 1884",
+              availabilityStatus: "available",
+            },
+          ],
+        },
+      },
+    });
+    expect(rec.holdings).toEqual([
+      {
+        library: "Falk Library",
+        libraryCode: "HSLS",
+        location: "Rare Books (Non Circulating)",
+        callNumber: "RC681 B815d 1884",
+        availabilityStatus: "available",
+      },
+    ]);
+  });
+
+  it("returns an empty holdings array when the delivery block has none", () => {
+    const rec = recordFromApiDoc({
+      pnx: { display: { title: "No Holdings" } },
+    });
+    expect(rec.holdings).toEqual([]);
+  });
+
+  it("skips holding entries with no library, code, or call number", () => {
+    const rec = recordFromApiDoc({
+      pnx: {
+        display: { title: "T" },
+        delivery: { holding: [{ availabilityStatus: "available" }, {}] },
+      },
+    });
+    expect(rec.holdings).toEqual([]);
+  });
+});

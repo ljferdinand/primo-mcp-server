@@ -49,6 +49,15 @@ function directDoc(recordId: string, title: string): unknown {
     delivery: {
       deliveryCategory: ["Alma-P"],
       availability: ["fulltext_linktorsrc"],
+      holding: [
+        {
+          mainLocation: "Falk Library",
+          libraryCode: "HSLS",
+          subLocation: "Rare Books (Non Circulating)",
+          callNumber: "RC681 B815d 1884",
+          availabilityStatus: "available",
+        },
+      ],
     },
   };
 }
@@ -237,6 +246,15 @@ describe("PrimoClient.getRecord direct full-display path", () => {
     expect(authHeader).toBe(`Bearer ${jwt}`);
     expect(rec?.recordId).toBe("alma991");
     expect(rec?.title).toBe("Direct Hit");
+    expect(rec?.holdings).toEqual([
+      {
+        library: "Falk Library",
+        libraryCode: "HSLS",
+        location: "Rare Books (Non Circulating)",
+        callNumber: "RC681 B815d 1884",
+        availabilityStatus: "available",
+      },
+    ]);
   });
 
   it("refreshes the guest JWT once on a 401 and retries", async () => {
