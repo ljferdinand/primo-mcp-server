@@ -121,4 +121,11 @@ describe("exportCsv", () => {
     const r = rec({ resourceType: "article", title: 'The "Best" Paper', creationDate: "2020" });
     expect(exportCsv([r])).toContain('"The ""Best"" Paper"');
   });
+
+  it("neutralises a leading formula character to prevent CSV injection", () => {
+    const r = rec({ resourceType: "book", title: "=1+2", creationDate: "2020" });
+    const csv = exportCsv([r]);
+    expect(csv).toContain("'=1+2");
+    expect(csv).not.toContain(",=1+2");
+  });
 });

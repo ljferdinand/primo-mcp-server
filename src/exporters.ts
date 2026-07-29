@@ -4,6 +4,8 @@
  * CSV uses a small RFC-4180 quoter (fields containing a comma, quote, or
  * newline are double-quoted, embedded quotes doubled) plus a UTF-8 BOM and
  * CRLF line endings for Excel, rather than a naive join or an added dependency.
+ * Fields that would otherwise be read as a formula (a leading =, +, -, @, or a
+ * control character) are prefixed with a single quote to defuse CSV injection.
  */
 import type { PrimoRecord } from "./models.js";
 
@@ -137,11 +139,22 @@ export function exportRis(records: PrimoRecord[]): string {
   return entries.join("\n\n");
 }
 
+/**
+ * Guard against CSV/formula injection. A field that begins with =, +, -, @, or
+ * a tab/carriage return can be executed as a formula when the CSV is opened in
+ * Excel or Google Sheets. Prefixing such a field with a single quote neutralises
+ * it (the standard OWASP mitigation) while keeping the value readable.
+ */
+function neutraliseFormula(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 function csvField(value: string): string {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+  const guarded = neutraliseFormula(value);
+  if (/[",\n\r]/.test(guarded)) {
+    return `"${guarded.replace(/"/g, '""')}"`;
   }
-  return value;
+  return guarded;
 }
 
 function csvRow(fields: string[]): string {
