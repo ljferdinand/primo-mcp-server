@@ -51,6 +51,31 @@ function splitSemicolons(values: string[]): string[] {
   return out;
 }
 
+/**
+ * Strip Primo "$$"-delimited subfields from an Alma PNX display value.
+ *
+ * Pitt (and other Alma) local records return authority-controlled display
+ * fields carrying subfield delimiters, e.g.
+ *   "Heggie, Jake, 1961- composer.$$QHeggie, Jake"
+ * where the primary display form precedes the first "$$" and an alternate
+ * form follows it. Keep the text before the first "$$". If a value leads with
+ * a delimiter (no primary form), fall back to the first subfield's text with
+ * its single-character code removed. Values without "$$" pass through
+ * unchanged. Deliberate deviation from strict Python parity (institution-first
+ * quirk fix), scoped to the display fields where the quirk appears.
+ */
+export function stripSubfields(value: string): string {
+  const idx = value.indexOf("$$");
+  if (idx === -1) return value.trim();
+  const before = value.slice(0, idx).trim();
+  if (before) return before;
+  // Leading delimiter: take the first subfield segment, drop its code char.
+  const rest = value.slice(idx + 2);
+  const nextDelim = rest.indexOf("$$");
+  const firstField = nextDelim === -1 ? rest : rest.slice(0, nextDelim);
+  return firstField.replace(/^[A-Za-z0-9]/, "").trim();
+}
+
 export interface PrimoRecord {
   // Identity
   recordId: string;
@@ -132,9 +157,15 @@ export function recordFromApiDoc(doc: Json): PrimoRecord {
     }
   }
 
-  const creators = splitSemicolons(toList(display.creator));
-  const subjects = splitSemicolons(toList(display.subject));
-  const keywords = splitSemicolons(toList(display.keyword));
+  const creators = splitSemicolons(toList(display.creator))
+    .map(stripSubfields)
+    .filter((s) => s.length > 0);
+  const subjects = splitSemicolons(toList(display.subject))
+    .map(stripSubfields)
+    .filter((s) => s.length > 0);
+  const keywords = splitSemicolons(toList(display.keyword))
+    .map(stripSubfields)
+    .filter((s) => s.length > 0);
 
   const peerReviewed = toList(display.lds50).some((x) =>
     x.toLowerCase().includes("peer_review"),
@@ -153,12 +184,14 @@ export function recordFromApiDoc(doc: Json): PrimoRecord {
     sourceId: firstOrEmpty(control.sourceid),
     sourceSystem: firstOrEmpty(control.sourcesystem),
 
-    title: firstOrEmpty(display.title),
+    title: stripSubfields(firstOrEmpty(display.title)),
     resourceType: firstOrEmpty(display.type),
     language: firstOrEmpty(display.language),
     creators,
-    contributors: toList(display.contributor),
-    publisher: firstOrEmpty(display.publisher),
+    contributors: toList(display.contributor)
+      .map(stripSubfields)
+      .filter((s) => s.length > 0),
+    publisher: stripSubfields(firstOrEmpty(display.publisher)),
     creationDate: firstOrEmpty(display.creationdate) || firstOrEmpty(addata.date),
     sourceLabel: firstOrEmpty(display.source),
     description:

@@ -4,6 +4,7 @@ import {
   searchResponseFromApi,
   toList,
   firstOrEmpty,
+  stripSubfields,
 } from "../src/models.js";
 
 describe("normalisers", () => {
@@ -138,5 +139,64 @@ describe("searchResponseFromApi", () => {
     const resp = searchResponseFromApi({ info: {} });
     expect(resp.records).toEqual([]);
     expect(resp.info.total).toBe(0);
+  });
+});
+
+describe("stripSubfields (Alma $$ subfield strip)", () => {
+  it("keeps the text before the first $$ delimiter", () => {
+    expect(
+      stripSubfields("Heggie, Jake, 1961- composer.$$QHeggie, Jake"),
+    ).toBe("Heggie, Jake, 1961- composer.");
+  });
+
+  it("passes values without a delimiter through unchanged (trimmed)", () => {
+    expect(stripSubfields("Cushing, Harvey, 1869-1939.")).toBe(
+      "Cushing, Harvey, 1869-1939.",
+    );
+    expect(stripSubfields("  spaced  ")).toBe("spaced");
+  });
+
+  it("falls back to the first subfield when a value leads with a delimiter", () => {
+    expect(stripSubfields("$$QHeggie, Jake")).toBe("Heggie, Jake");
+  });
+
+  it("keeps only the primary form when several subfields follow", () => {
+    expect(stripSubfields("Primary$$QAlt$$YOther")).toBe("Primary");
+  });
+});
+
+describe("recordFromApiDoc: Alma $$ subfield handling", () => {
+  const almaDoc = {
+    context: "L",
+    pnx: {
+      control: { recordid: ["alma991001"], sourcesystem: ["Alma"] },
+      display: {
+        title: "Meningiomas$$QMeningiomas, their classification",
+        creator: ["Cushing, Harvey, 1869-1939.$$QCushing, Harvey"],
+        contributor: ["Eisenhardt, Louise.$$QEisenhardt, Louise"],
+        subject: ["Meningioma$$QMeningiomas; Brain$$QBrain neoplasms"],
+        publisher: "Charles C. Thomas$$QThomas",
+      },
+    },
+  };
+  const ar = recordFromApiDoc(almaDoc);
+
+  it("strips $$ subfields from title, creator, contributor, subject, publisher", () => {
+    expect(ar.title).toBe("Meningiomas");
+    expect(ar.creators).toEqual(["Cushing, Harvey, 1869-1939."]);
+    expect(ar.contributors).toEqual(["Eisenhardt, Louise."]);
+    expect(ar.subjects).toEqual(["Meningioma", "Brain"]);
+    expect(ar.publisher).toBe("Charles C. Thomas");
+  });
+
+  it("preserves multiple $$-carrying names split on a semicolon", () => {
+    const multi = recordFromApiDoc({
+      pnx: {
+        display: {
+          creator: ["Cushing, Harvey.$$QCushing; Osler, William.$$QOsler"],
+        },
+      },
+    });
+    expect(multi.creators).toEqual(["Cushing, Harvey.", "Osler, William."]);
   });
 });
