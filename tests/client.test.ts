@@ -123,6 +123,36 @@ describe("PrimoClient.search", () => {
     await client.search({ query: "x", limit: 999 });
     expect(new URL(captured).searchParams.get("limit")).toBe("50");
   });
+
+  it("sets pcAvailability=false when include_unavailable is false", async () => {
+    let captured = "";
+    const client = makeClient(async (url) => {
+      captured = url;
+      return jsonResponse({ info: {}, docs: [] });
+    });
+    await client.search({ query: "x", includeUnavailable: false });
+    expect(new URL(captured).searchParams.get("pcAvailability")).toBe("false");
+  });
+
+  it("sets pcAvailability=true when include_unavailable is true", async () => {
+    let captured = "";
+    const client = makeClient(async (url) => {
+      captured = url;
+      return jsonResponse({ info: {}, docs: [] });
+    });
+    await client.search({ query: "x", includeUnavailable: true });
+    expect(new URL(captured).searchParams.get("pcAvailability")).toBe("true");
+  });
+
+  it("defaults pcAvailability to true (expanded) when include_unavailable is omitted", async () => {
+    let captured = "";
+    const client = makeClient(async (url) => {
+      captured = url;
+      return jsonResponse({ info: {}, docs: [] });
+    });
+    await client.search({ query: "x" });
+    expect(new URL(captured).searchParams.get("pcAvailability")).toBe("true");
+  });
 });
 
 describe("PrimoClient error mapping", () => {

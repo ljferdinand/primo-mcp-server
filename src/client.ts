@@ -41,6 +41,7 @@ export interface SearchOptions {
   dateFrom?: string;
   dateTo?: string;
   peerReviewed?: boolean;
+  includeUnavailable?: boolean;
 }
 
 type FetchLike = typeof fetch;
@@ -109,6 +110,8 @@ export class PrimoClient {
       cfg.maxResultsPerRequest,
     );
     const offset = Math.max(0, options.offset ?? 0);
+    const includeUnavailable =
+      options.includeUnavailable ?? cfg.includeUnavailable;
 
     let tab: string;
     let scopeParam: string;
@@ -129,7 +132,9 @@ export class PrimoClient {
       limit: String(limit),
       lang: cfg.language,
       sortby: sortBy,
-      pcAvailability: "true",
+      // pcAvailability=true is Primo's "expanded" search (includes records with
+      // no full-text access); false restricts to currently-available material.
+      pcAvailability: includeUnavailable ? "true" : "false",
     };
 
     const qInclude: string[] = [];

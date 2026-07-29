@@ -58,6 +58,10 @@ export function createServer(
       date_from: z.string().optional().describe("Start year filter, YYYY."),
       date_to: z.string().optional().describe("End year filter, YYYY."),
       peer_reviewed: z.boolean().optional().describe("Set true to show only peer-reviewed items."),
+      include_unavailable: z
+        .boolean()
+        .optional()
+        .describe("Include records the library has no full-text access to (Primo's expanded search). Defaults to broad (included); set false to restrict results to currently-available material."),
     },
     async (args) => {
       try {
@@ -72,6 +76,7 @@ export function createServer(
           dateFrom: args.date_from,
           dateTo: args.date_to,
           peerReviewed: args.peer_reviewed,
+          includeUnavailable: args.include_unavailable,
         });
         return textResult(
           formatSearchResults(response, args.query, args.offset ?? 0, config.discoveryName),

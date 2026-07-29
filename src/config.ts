@@ -33,6 +33,15 @@ export interface PrimoConfig {
   defaultResults: number;
   language: string;
   userAgent: string;
+  /**
+   * Default for Primo's pcAvailability search parameter. When true the search
+   * is "expanded" and includes records the institution has no full-text access
+   * to; when false it is restricted to currently-available material. Defaults
+   * to true to preserve the port's original behaviour; a per-call
+   * include_unavailable argument overrides it. Set PRIMO_INCLUDE_UNAVAILABLE to
+   * "false" to make restricted-to-available the default.
+   */
+  includeUnavailable: boolean;
 }
 
 /** Thrown when required configuration is missing, for a clean startup error. */
@@ -53,6 +62,15 @@ function envNum(name: string, fallback: number): number {
   if (v === undefined || v.trim() === "") return fallback;
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function envBool(name: string, fallback: boolean): boolean {
+  const v = process.env[`PRIMO_${name}`];
+  if (v === undefined || v.trim() === "") return fallback;
+  const s = v.trim().toLowerCase();
+  if (s === "true" || s === "1" || s === "yes" || s === "on") return true;
+  if (s === "false" || s === "0" || s === "no" || s === "off") return false;
+  return fallback;
 }
 
 /** Read a required PRIMO_ variable, recording it as missing if unset/empty. */
@@ -103,5 +121,6 @@ export function loadConfig(): PrimoConfig {
     defaultResults: envNum("DEFAULT_RESULTS", 10),
     language: envStr("LANGUAGE", "en"),
     userAgent: envStr("USER_AGENT", "primo-mcp-server/0.1.0"),
+    includeUnavailable: envBool("INCLUDE_UNAVAILABLE", true),
   };
 }
