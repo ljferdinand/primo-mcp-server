@@ -5,9 +5,11 @@ catalogue and its subscribed databases (ProQuest, Elsevier, Crossref, Gale,
 Springer, IEEE, and so on) over the Model Context Protocol.
 
 This is the Node/TypeScript port. It talks only to Primo's **public** REST API
-(the `/primaws/rest/pub` endpoints) with a view ID: no per-user login and no
-authenticated endpoints, the same access class as an ordinary catalogue search
-in a browser.
+(the `/primaws/rest/pub` endpoints) with a view ID. There is no per-user login:
+search and suggest are fully anonymous, and single-record lookup uses an
+anonymous **guest token** the institution issues to any visitor (the same
+session token a signed-out browser receives), never a personal login or API
+key. This is the same access class as an ordinary catalogue search in a browser.
 
 ## Tools
 
@@ -42,20 +44,7 @@ servers. Use an **absolute** path to `node` and to `dist/index.js`, because the
 app's launch environment has a narrower `PATH` than your shell. Find your node
 path with `which node`.
 
-Minimal (uses the built-in UWA defaults):
-
-```json
-{
-  "mcpServers": {
-    "primo": {
-      "command": "/opt/homebrew/bin/node",
-      "args": ["/absolute/path/to/primo-mcp-server/dist/index.js"]
-    }
-  }
-}
-```
-
-Pointed at your own library, via an `env` block:
+`PRIMO_BASE_URL` and `PRIMO_VID` are required, so set them in an `env` block:
 
 ```json
 {
@@ -84,7 +73,9 @@ highest first:
 
 1. The process environment: an `env` block in the MCP config, or a shell export.
 2. A `.env` file in the project root (copy `.env.example` to `.env`).
-3. The built-in defaults (UWA).
+3. The built-in defaults for the optional variables. `PRIMO_BASE_URL` and
+   `PRIMO_VID` have no default and must be provided by 1 or 2; the server exits
+   at startup with a clear message if either is missing.
 
 A `.env` file is loaded from the project root regardless of the working
 directory, so it works even when Claude Desktop launches the server from
@@ -94,9 +85,10 @@ elsewhere. Values set in the process environment are never overridden by `.env`.
 
 | Variable | Default | What it is |
 |----------|---------|------------|
-| `PRIMO_BASE_URL` | `https://onesearch.library.uwa.edu.au/primaws/rest/pub` | Public Primo REST API base: `https://<host>/primaws/rest/pub` |
-| `PRIMO_VID` | `61UWA_INST:NDE_UWA` | View ID, `<inst_code>:<view_code>` |
-| `PRIMO_INSTITUTION_NAME` | `UWA` | Institution short name |
+| `PRIMO_BASE_URL` | **required** | Public Primo REST API base: `https://<host>/primaws/rest/pub` |
+| `PRIMO_VID` | **required** | View ID, `<inst_code>:<view_code>` |
+| `PRIMO_INSTITUTION_CODE` | (VID prefix) | Institution code for the guest-token endpoint; derived from the VID prefix when unset |
+| `PRIMO_INSTITUTION_NAME` | `the library catalogue` | Institution short name; fallback for `PRIMO_DISCOVERY_NAME` |
 | `PRIMO_DISCOVERY_NAME` | (institution name) | Discovery brand shown to users, e.g. `OneSearch`, `PittCat` |
 | `PRIMO_TAB_EVERYTHING` | `Everything` | Tab for the combined (local + databases) search |
 | `PRIMO_TAB_CATALOGUE` | `Catalogue` | Tab for the local-catalogue-only search |
