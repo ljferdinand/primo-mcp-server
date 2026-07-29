@@ -129,6 +129,37 @@ describe("formatRecordDetail", () => {
   });
 });
 
+describe("formatRecordDetail holdings", () => {
+  it("lists physical holdings when present", () => {
+    const r = rec({
+      recordId: "alma993490",
+      title: "Diseases of the Heart",
+      resourceType: "book",
+      creators: ["Bramwell, Byrom"],
+      creationDate: "1884",
+      holdings: [
+        {
+          library: "Falk Library",
+          libraryCode: "HSLS",
+          location: "Rare Books (Non Circulating)",
+          callNumber: "RC681 B815d 1884",
+          availabilityStatus: "available",
+        },
+      ],
+    });
+    const out = formatRecordDetail(r, "PittCat");
+    expect(out).toContain("Holdings:");
+    expect(out).toContain(
+      "  - Falk Library | RC681 B815d 1884 | Rare Books (Non Circulating) | available",
+    );
+  });
+
+  it("omits the holdings block when there are none", () => {
+    const r = rec({ recordId: "r", title: "T", resourceType: "book" });
+    expect(formatRecordDetail(r, "PittCat")).not.toContain("Holdings:");
+  });
+});
+
 describe("formatSuggestions", () => {
   it("lists suggestions", () => {
     expect(formatSuggestions(["a", "b"], "x")).toContain("  - a");

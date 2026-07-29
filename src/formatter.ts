@@ -45,6 +45,28 @@ function formatAvailability(record: PrimoRecord, discoveryName: string): string 
     : `Check availability in ${discoveryName}`;
 }
 
+/**
+ * Physical holdings, one indented line each: library, call number, shelf
+ * location, and status, joined with " | " (empty parts dropped). Returns an
+ * empty array when the record carries no holdings, so callers can spread it
+ * unconditionally. Populated on the direct get_record path; search results
+ * usually have none.
+ */
+function formatHoldings(record: PrimoRecord): string[] {
+  const holdings = record.holdings ?? [];
+  if (holdings.length === 0) return [];
+  const lines: string[] = ["Holdings:"];
+  for (const h of holdings) {
+    const parts: string[] = [];
+    if (h.library) parts.push(h.library);
+    if (h.callNumber) parts.push(h.callNumber);
+    if (h.location) parts.push(h.location);
+    if (h.availabilityStatus) parts.push(h.availabilityStatus);
+    lines.push(`  - ${parts.join(" | ")}`);
+  }
+  return lines;
+}
+
 export function formatSearchResults(
   response: SearchResponse,
   query: string,
@@ -150,6 +172,7 @@ export function formatRecordDetail(
   }
 
   lines.push(`\nAvailability: ${formatAvailability(record, discoveryName)}`);
+  lines.push(...formatHoldings(record));
   if (record.sourceLabel) lines.push(`Source: ${record.sourceLabel}`);
   lines.push(`Record ID: ${record.recordId}`);
 
