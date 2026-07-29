@@ -53,6 +53,17 @@ class TestFormatRecordDetail:
             assert "DOI:" in output
 
 
+class TestFormatSuggestions:
+    def test_formats_suggestions(self):
+        output = format_suggestions(["machine learning", "machine vision"], "machine")
+        assert "machine learning" in output
+        assert "machine vision" in output
+
+    def test_empty_suggestions(self):
+        output = format_suggestions([], "xyzzy")
+        assert "No suggestions" in output
+
+
 class TestFormatHoldings:
     def test_lists_holdings_when_present(self):
         record = PrimoRecord(
