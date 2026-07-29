@@ -263,35 +263,39 @@ export class PrimoClient {
       viewId: this.viewId(),
     };
 
-    const response = await this.rawFetch(path, params);
-    if (!response.ok) {
-      throw new PrimoApiError(
-        `Could not obtain a Primo guest token from ${path} (HTTP ${response.status}). ` +
-          "Direct record lookup is unavailable; falling back to search-based lookup.",
-        response.status,
-      );
-    }
-    const token = (await response.text())
-      .trim()
-      .replace(/^"+/, "")
-      .replace(/"+$/, "");
-    if (!token) {
-      throw new PrimoApiError(
-        "Primo guest token endpoint returned an empty token.",
-      );
-    }
+    const { response, done } = await this.rawFetch(path, params);
+    try {
+      if (!response.ok) {
+        throw new PrimoApiError(
+          `Could not obtain a Primo guest token from ${path} (HTTP ${response.status}). ` +
+            "Direct record lookup is unavailable; falling back to search-based lookup.",
+          response.status,
+        );
+      }
+      const raw = await response.text();
+      const token = raw.trim().replace(/^"+/, "").replace(/"+$/, "");
+      if (!token) {
+        throw new PrimoApiError(
+          "Primo guest token endpoint returned an empty token.",
+        );
+      }
 
-    const exp = PrimoClient.jwtExpiryEpoch(token);
-    const lifetimeSeconds =
-      exp !== null
-        ? Math.max(
-            exp - Date.now() / 1000 - PrimoClient.JWT_SAFETY_MARGIN_SECONDS,
-            60,
-          )
-        : PrimoClient.JWT_FALLBACK_LIFETIME_SECONDS;
-    this.guestJwtToken = token;
-    this.guestJwtExpiry = now + lifetimeSeconds * 1000;
-    return token;
+      const exp = PrimoClient.jwtExpiryEpoch(token);
+      const lifetimeSeconds =
+        exp !== null
+          ? Math.max(
+              exp - Date.now() / 1000 - PrimoClient.JWT_SAFETY_MARGIN_SECONDS,
+              60,
+            )
+          : PrimoClient.JWT_FALLBACK_LIFETIME_SECONDS;
+      this.guestJwtToken = token;
+      this.guestJwtExpiry = now + lifetimeSeconds * 1000;
+      return token;
+    } catch (err) {
+      throw this.wrapTransportError(err);
+    } finally {
+      done();
+    }
   }
 
   /**
@@ -343,16 +347,20 @@ export class PrimoClient {
     const cfg = this.config;
     const encoded = encodeURIComponent(recordId);
     try {
-      const response = await this.rawFetch(
+      const { response, done } = await this.rawFetch(
         `/pnxs/${context}/${encoded}`,
         { vid: cfg.vid, lang: cfg.language },
         { Authorization: `Bearer ${token}` },
       );
-      if (response.status === 401 || response.status === 403) return "auth";
-      if (!response.ok) return null;
-      const data: unknown = await response.json();
-      if (!isObject(data) || !isObject(data.pnx)) return null;
-      return data;
+      try {
+        if (response.status === 401 || response.status === 403) return "auth";
+        if (!response.ok) return null;
+        const data: unknown = await response.json();
+        if (!isObject(data) || !isObject(data.pnx)) return null;
+        return data;
+      } finally {
+        done();
+      }
     } catch {
       return null;
     }
@@ -413,18 +421,40 @@ export class PrimoClient {
 
   // -- Transport ------------------------------------------------------------
 
-  /** Build the URL, apply the timeout, and return the raw Response. */
+  /** Map a thrown fetch/parse error to a friendly PrimoApiError. */
+  private wrapTransportError(err: unknown): PrimoApiError {
+    const cfg = this.config;
+    if (err instanceof PrimoApiError) return err;
+    if (err instanceof Error && err.name === "AbortError") {
+      return new PrimoApiError(
+        `Request timed out after ${Math.round(cfg.requestTimeoutMs / 1000)}s. The Primo API may be slow or unavailable. Try again shortly.`,
+      );
+    }
+    if (err instanceof TypeError) {
+      return new PrimoApiError(
+        `Could not connect to ${cfg.baseUrl}. Check your network connection and that the Primo API is available.`,
+      );
+    }
+    return new PrimoApiError(`Unexpected error querying Primo: ${String(err)}`);
+  }
+
+  /**
+   * Build the URL and start the request under a timeout. Returns the raw
+   * Response together with a `done()` that clears the timeout; the caller must
+   * invoke `done()` once the body has been fully read, so the timeout covers
+   * the body download and not just the response headers.
+   */
   private async rawFetch(
     path: string,
     params: Record<string, string>,
     extraHeaders?: Record<string, string>,
-  ): Promise<Response> {
+  ): Promise<{ response: Response; done: () => void }> {
     const cfg = this.config;
     const url = `${cfg.baseUrl}${path}?${new URLSearchParams(params).toString()}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), cfg.requestTimeoutMs);
     try {
-      return await this.fetchImpl(url, {
+      const response = await this.fetchImpl(url, {
         method: "GET",
         headers: {
           "User-Agent": cfg.userAgent,
@@ -433,21 +463,10 @@ export class PrimoClient {
         },
         signal: controller.signal,
       });
+      return { response, done: () => clearTimeout(timer) };
     } catch (err) {
-      if (err instanceof PrimoApiError) throw err;
-      if (err instanceof Error && err.name === "AbortError") {
-        throw new PrimoApiError(
-          `Request timed out after ${Math.round(cfg.requestTimeoutMs / 1000)}s. The Primo API may be slow or unavailable. Try again shortly.`,
-        );
-      }
-      if (err instanceof TypeError) {
-        throw new PrimoApiError(
-          `Could not connect to ${cfg.baseUrl}. Check your network connection and that the Primo API is available.`,
-        );
-      }
-      throw new PrimoApiError(`Unexpected error querying Primo: ${String(err)}`);
-    } finally {
       clearTimeout(timer);
+      throw this.wrapTransportError(err);
     }
   }
 
@@ -455,27 +474,29 @@ export class PrimoClient {
     path: string,
     params: Record<string, string>,
   ): Promise<unknown> {
-    const response = await this.rawFetch(path, params);
-    if (!response.ok) {
-      const status = response.status;
-      if (status === 400) {
-        throw new PrimoApiError(
-          "Bad request (HTTP 400). Check your search query and parameters.",
-          400,
-        );
-      }
-      if (status >= 500) {
-        throw new PrimoApiError(
-          `Primo API server error (HTTP ${status}). The service may be experiencing issues. Try again later.`,
-          status,
-        );
-      }
-      throw new PrimoApiError(`Primo API returned HTTP ${status}.`, status);
-    }
+    const { response, done } = await this.rawFetch(path, params);
     try {
+      if (!response.ok) {
+        const status = response.status;
+        if (status === 400) {
+          throw new PrimoApiError(
+            "Bad request (HTTP 400). Check your search query and parameters.",
+            400,
+          );
+        }
+        if (status >= 500) {
+          throw new PrimoApiError(
+            `Primo API server error (HTTP ${status}). The service may be experiencing issues. Try again later.`,
+            status,
+          );
+        }
+        throw new PrimoApiError(`Primo API returned HTTP ${status}.`, status);
+      }
       return (await response.json()) as unknown;
     } catch (err) {
-      throw new PrimoApiError(`Unexpected error querying Primo: ${String(err)}`);
+      throw this.wrapTransportError(err);
+    } finally {
+      done();
     }
   }
 }
