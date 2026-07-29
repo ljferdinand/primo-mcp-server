@@ -36,6 +36,31 @@ def _format_availability(record: PrimoRecord) -> str:
     return " | ".join(parts) if parts else "Check availability in OneSearch"
 
 
+def _format_holdings(record: PrimoRecord) -> list[str]:
+    """Physical holdings, one indented line each.
+
+    Each line is library, call number, shelf location, and status, joined with
+    " | " (empty parts dropped, library code omitted since the library name
+    carries it). Returns an empty list when the record has none, which is the
+    usual case for records that come from a brief search.
+    """
+    if not record.holdings:
+        return []
+    lines = ["Holdings:"]
+    for h in record.holdings:
+        parts = []
+        if h.library:
+            parts.append(h.library)
+        if h.call_number:
+            parts.append(h.call_number)
+        if h.location:
+            parts.append(h.location)
+        if h.availability_status:
+            parts.append(h.availability_status)
+        lines.append(f"  - {' | '.join(parts)}")
+    return lines
+
+
 def format_search_results(response: SearchResponse, query: str, offset: int = 0) -> str:
     """Format search results as a compact numbered list.
 
@@ -158,6 +183,7 @@ def format_record_detail(record: PrimoRecord) -> str:
 
     # Availability
     lines.append(f"\nAvailability: {_format_availability(record)}")
+    lines.extend(_format_holdings(record))
     if record.source_label:
         lines.append(f"Source: {record.source_label}")
 

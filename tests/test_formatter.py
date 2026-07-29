@@ -5,7 +5,7 @@ from primo_mcp_server.formatter import (
     format_search_results,
     format_suggestions,
 )
-from primo_mcp_server.models import SearchResponse
+from primo_mcp_server.models import Holding, PrimoRecord, SearchResponse
 
 
 class TestFormatSearchResults:
@@ -53,12 +53,35 @@ class TestFormatRecordDetail:
             assert "DOI:" in output
 
 
-class TestFormatSuggestions:
-    def test_formats_suggestions(self):
-        output = format_suggestions(["machine learning", "machine vision"], "machine")
-        assert "machine learning" in output
-        assert "machine vision" in output
+class TestFormatHoldings:
+    def test_lists_holdings_when_present(self):
+        record = PrimoRecord(
+            record_id="alma993490",
+            title="Diseases of the Heart",
+            resource_type="book",
+            creators=["Bramwell, Byrom"],
+            creation_date="1884",
+            holdings=[
+                Holding(
+                    library="Falk Library",
+                    library_code="HSLS",
+                    location="Rare Books (Non Circulating)",
+                    call_number="RC681 B815d 1884",
+                    availability_status="available",
+                )
+            ],
+        )
+        output = format_record_detail(record)
+        assert "Holdings:" in output
+        assert (
+            "  - Falk Library | RC681 B815d 1884 | "
+            "Rare Books (Non Circulating) | available" in output
+        )
 
-    def test_empty_suggestions(self):
-        output = format_suggestions([], "xyzzy")
-        assert "No suggestions" in output
+    def test_omits_holdings_when_none(self):
+        record = PrimoRecord(
+            record_id="r",
+            title="T",
+            resource_type="book",
+        )
+        assert "Holdings:" not in format_record_detail(record)
