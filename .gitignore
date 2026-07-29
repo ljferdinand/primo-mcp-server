@@ -8,3 +8,7 @@ build/
 .pytest_cache/
 .env
 *.egg
+
+node_modules/
+dist/
+.env
