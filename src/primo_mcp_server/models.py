@@ -7,6 +7,8 @@ everything into predictable types.
 
 from __future__ import annotations
 
+import re
+
 from pydantic import BaseModel, field_validator
 
 
@@ -25,6 +27,39 @@ def _first_or_empty(v: str | list[str] | None) -> str:
     return items[0] if items else ""
 
 
+def _strip_subfields(value: str) -> str:
+    """Strip Primo "$$"-delimited subfields from an Alma PNX display value.
+
+    Alma local records return authority-controlled display fields carrying
+    subfield delimiters, e.g. "Heggie, Jake, 1961- composer.$$QHeggie, Jake",
+    where the primary display form precedes the first "$$" and an alternate
+    form follows it. Keep the text before the first "$$". If a value leads
+    with a delimiter (no primary form), fall back to the first subfield's
+    text with its single-character subfield code removed. Values without
+    "$$" pass through unchanged.
+    """
+    idx = value.find("$$")
+    if idx == -1:
+        return value.strip()
+    before = value[:idx].strip()
+    if before:
+        return before
+    rest = value[idx + 2:]
+    next_delim = rest.find("$$")
+    first_field = rest if next_delim == -1 else rest[:next_delim]
+    return re.sub(r"^[A-Za-z0-9]", "", first_field).strip()
+
+
+class Holding(BaseModel):
+    """A physical holding: which library holds an item, where, and its status."""
+
+    library: str = ""
+    library_code: str = ""
+    location: str = ""
+    call_number: str = ""
+    availability_status: str = ""
+
+
 class PrimoRecord(BaseModel):
     """A normalised Primo catalogue record."""
 
@@ -40,6 +75,7 @@ class PrimoRecord(BaseModel):
     creators: list[str] = []
     contributors: list[str] = []
     publisher: str = ""
+    publisher_place: str = ""
     creation_date: str = ""
     source_label: str = ""
     description: str = ""
@@ -67,6 +103,7 @@ class PrimoRecord(BaseModel):
     # Availability
     fulltext_available: bool = False
     delivery_category: str = ""
+    holdings: list[Holding] = []
 
     # Relevance
     score: float = 0.0
@@ -82,31 +119,90 @@ class PrimoRecord(BaseModel):
         search = pnx.get("search", {})
         delivery = pnx.get("delivery", {})
 
-        # Extract DOI from identifiers
+        # Extract DOI from identifiers, stripping any trailing "$$" subfield.
         doi = ""
         identifiers = _to_list(display.get("identifier"))
         for ident in identifiers:
             if "DOI:" in ident.upper():
-                doi = ident.split("DOI:")[-1].strip()
+                doi = _strip_subfields(ident.split("DOI:")[-1])
                 break
 
-        # Parse creators -- display.creator is often a single semicolon-separated string
+        # Parse creators -- display.creator is often a single semicolon-
+        # separated string; split, then strip Alma "$$" subfields per name.
         raw_creators = _to_list(display.get("creator"))
         creators = []
         for c in raw_creators:
-            creators.extend(part.strip() for part in c.split(";") if part.strip())
+            creators.extend(
+                _strip_subfields(part) for part in c.split(";") if part.strip()
+            )
+        creators = [c for c in creators if c]
 
         # Subjects -- may be semicolon-separated
         raw_subjects = _to_list(display.get("subject"))
         subjects = []
         for s in raw_subjects:
-            subjects.extend(part.strip() for part in s.split(";") if part.strip())
+            subjects.extend(
+                _strip_subfields(part) for part in s.split(";") if part.strip()
+            )
+        subjects = [s for s in subjects if s]
 
         # Keywords
         raw_keywords = _to_list(display.get("keyword"))
         keywords = []
         for k in raw_keywords:
-            keywords.extend(part.strip() for part in k.split(";") if part.strip())
+            keywords.extend(
+                _strip_subfields(part) for part in k.split(";") if part.strip()
+            )
+        keywords = [k for k in keywords if k]
+
+        # Contributors
+        contributors = [
+            _strip_subfields(x) for x in _to_list(display.get("contributor"))
+        ]
+        contributors = [c for c in contributors if c]
+
+        # Publisher and place of publication. Alma addata carries clean,
+        # pre-split fields (pub = publisher, cop = place); prefer them.
+        # Otherwise fall back to the combined display.publisher, which uses
+        # the ISBD " : " delimiter between place and publisher (e.g.
+        # "New York : Appleton & Co."). "$$" subfields are stripped first.
+        addata_publisher = _strip_subfields(_first_or_empty(addata.get("pub")))
+        addata_place = _strip_subfields(_first_or_empty(addata.get("cop")))
+        if addata_publisher:
+            publisher = addata_publisher
+            publisher_place = addata_place
+        else:
+            combined = _strip_subfields(_first_or_empty(display.get("publisher")))
+            sep = combined.find(" : ")
+            if sep != -1:
+                publisher_place = combined[:sep].strip()
+                publisher = combined[sep + 3:].strip()
+            else:
+                publisher = combined
+                publisher_place = addata_place
+
+        # Physical holdings (owning library, location, call number, status).
+        # Present on the direct get_record response (carried into
+        # delivery.holding by the client); brief search results carry a
+        # lighter delivery block, so this is usually empty there. The nested
+        # fields are plain strings in the PNX.
+        holdings: list[Holding] = []
+        raw_holdings = delivery.get("holding")
+        if isinstance(raw_holdings, list):
+            for h in raw_holdings:
+                if not isinstance(h, dict):
+                    continue
+                holding = Holding(
+                    library=_first_or_empty(h.get("mainLocation")),
+                    library_code=_first_or_empty(h.get("libraryCode")),
+                    location=_first_or_empty(h.get("subLocation")),
+                    call_number=_first_or_empty(h.get("callNumber")),
+                    availability_status=_first_or_empty(
+                        h.get("availabilityStatus")
+                    ),
+                )
+                if holding.library or holding.library_code or holding.call_number:
+                    holdings.append(holding)
 
         # Peer review
         lds50 = _to_list(display.get("lds50"))
@@ -126,12 +222,13 @@ class PrimoRecord(BaseModel):
                 else (control.get("sourceid", [None]) or [None])[0]
             ),
             source_system=_first_or_empty(control.get("sourcesystem")),
-            title=_first_or_empty(display.get("title")),
+            title=_strip_subfields(_first_or_empty(display.get("title"))),
             resource_type=_first_or_empty(display.get("type")),
             language=_first_or_empty(display.get("language")),
             creators=creators,
-            contributors=_to_list(display.get("contributor")),
-            publisher=_first_or_empty(display.get("publisher")),
+            contributors=contributors,
+            publisher=publisher,
+            publisher_place=publisher_place,
             creation_date=_first_or_empty(display.get("creationdate"))
                 or _first_or_empty(addata.get("date")),
             source_label=_first_or_empty(display.get("source")),
@@ -155,6 +252,7 @@ class PrimoRecord(BaseModel):
             authors_structured=_to_list(addata.get("au")),
             fulltext_available="fulltext" in str(delivery.get("fulltext", "")),
             delivery_category=_first_or_empty(delivery.get("delcategory")),
+            holdings=holdings,
             score=score,
             context=doc.get("context", ""),
         )
