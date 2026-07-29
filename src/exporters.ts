@@ -19,21 +19,42 @@ function bibtexKey(record: PrimoRecord): string {
   let firstAuthor = "";
   const authors = authorsOf(record);
   if (authors.length > 0) {
-    const idx = authors[0].indexOf(",");
-    const lastName = idx === -1 ? authors[0] : authors[0].slice(0, idx);
+    const first = authors[0] ?? "";
+    const idx = first.indexOf(",");
+    const lastName = idx === -1 ? first : first.slice(0, idx);
     firstAuthor = lastName.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
   }
   const year = record.creationDate ? record.creationDate.slice(0, 4) : "nodate";
   let titleWord = "";
   if (record.title) {
     const words = record.title.match(/[a-zA-Z]+/g);
-    if (words && words.length > 0) titleWord = words[0].toLowerCase();
+    if (words && words.length > 0) titleWord = (words[0] ?? "").toLowerCase();
   }
   return `${firstAuthor}${year}${titleWord}` || "unknown";
 }
 
+/**
+ * Escape the characters LaTeX treats specially so a title or name renders
+ * literally in a BibTeX entry. A single-pass character-class replace maps each
+ * special character to its escape, so escapes inserted for one character (the
+ * braces inside \textbackslash{}, \textasciitilde{}, \textasciicircum{}) are not
+ * themselves re-escaped. Backslash is included, which is why the single pass
+ * matters.
+ */
 function bibtexEscape(value: string): string {
-  return value.replace(/&/g, "\\&").replace(/%/g, "\\%").replace(/#/g, "\\#");
+  const map: Record<string, string> = {
+    "\\": "\\textbackslash{}",
+    "&": "\\&",
+    "%": "\\%",
+    "$": "\\$",
+    "#": "\\#",
+    "_": "\\_",
+    "{": "\\{",
+    "}": "\\}",
+    "~": "\\textasciitilde{}",
+    "^": "\\textasciicircum{}",
+  };
+  return value.replace(/[\\&%$#_{}~^]/g, (ch) => map[ch] ?? ch);
 }
 
 export function exportBibtex(records: PrimoRecord[]): string {

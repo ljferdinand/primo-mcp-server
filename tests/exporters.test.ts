@@ -71,9 +71,14 @@ describe("exportBibtex", () => {
     expect(out).toContain("issn = {1234-5678}");
   });
 
-  it("escapes special characters", () => {
+  it("escapes & % # special characters", () => {
     const r = rec({ resourceType: "book", title: "Cats & Dogs", creationDate: "2020", creators: ["A, B"] });
     expect(exportBibtex([r])).toContain("title = {Cats \\& Dogs}");
+  });
+
+  it("escapes LaTeX specials beyond & % # (underscore, dollar)", () => {
+    const r = rec({ resourceType: "book", title: "H_2O costs $5", creationDate: "2020", creators: ["A, B"] });
+    expect(exportBibtex([r])).toContain("title = {H\\_2O costs \\$5}");
   });
 
   it("disambiguates duplicate keys with a letter suffix", () => {
