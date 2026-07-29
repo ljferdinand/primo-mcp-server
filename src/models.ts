@@ -145,14 +145,14 @@ export function recordFromApiDoc(doc: Json): PrimoRecord {
   const delivery = asObject(pnx.delivery);
 
   // DOI from identifiers: case-insensitive presence check, then split on the
-  // literal "DOI:" (matches the Python; the raw identifier's own delimiters are
-  // not stripped -- flagged for the parity-vs-cleanup follow-up).
+  // literal "DOI:" and strip any trailing Primo "$$" subfield delimiters from
+  // the value, the same quirk handled for the display fields.
   const identifiers = toList(display.identifier);
   let doi = "";
   for (const ident of identifiers) {
     if (ident.toUpperCase().includes("DOI:")) {
       const parts = ident.split("DOI:");
-      doi = parts[parts.length - 1].trim();
+      doi = stripSubfields(parts[parts.length - 1]);
       break;
     }
   }
