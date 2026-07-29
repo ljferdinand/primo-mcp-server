@@ -11,7 +11,7 @@ import { config as loadDotenv } from "dotenv";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, ConfigError } from "./config.js";
 import { createServer } from "./server.js";
 
 // dist/index.js -> project root (next to package.json). Resolved from the
@@ -27,6 +27,11 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  console.error("Fatal error starting primo-mcp-server:", err);
+  if (err instanceof ConfigError) {
+    // Missing/invalid configuration: print the actionable message, not a stack.
+    console.error(`primo-mcp-server: ${err.message}`);
+  } else {
+    console.error("Fatal error starting primo-mcp-server:", err);
+  }
   process.exit(1);
 });
