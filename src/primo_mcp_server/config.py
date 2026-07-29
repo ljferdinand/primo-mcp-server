@@ -16,6 +16,10 @@ class PrimoConfig(BaseSettings):
     # Institution-specific
     base_url: str = "https://onesearch.library.uwa.edu.au/primaws/rest/pub"
     vid: str = "61UWA_INST:NDE_UWA"
+    # Institution code for the guest-token endpoint used by direct record
+    # lookup; derived from the VID prefix when left empty, which is correct
+    # for standard Primo VE view IDs.
+    institution_code: str = ""
     institution_name: str = "UWA"
     tab_everything: str = "Everything"
     tab_catalogue: str = "Catalogue"
