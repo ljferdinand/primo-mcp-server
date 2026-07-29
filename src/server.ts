@@ -12,7 +12,7 @@ import {
   formatSearchResults,
   formatSuggestions,
 } from "./formatter.js";
-import { CITATION_STYLES, formatCitation } from "./citations.js";
+import { formatCitation } from "./citations.js";
 import { exportBibtex, exportCsv, exportRis } from "./exporters.js";
 
 function textResult(text: string): { content: { type: "text"; text: string }[] } {
@@ -24,8 +24,6 @@ function errorText(action: string, err: unknown): string {
   return `Unexpected error: ${String(err)}`;
 }
 
-const EXPORT_FORMATS = ["bibtex", "ris", "csv"];
-
 export function createServer(
   config: PrimoConfig,
   client: PrimoClient = new PrimoClient(config),
@@ -36,23 +34,38 @@ export function createServer(
     "primo_search",
     "Search the university library catalogue and subscribed databases (ProQuest, Elsevier, Crossref, Gale, Springer, IEEE, etc.) via the Ex Libris Primo discovery API. Returns a compact list with title, authors, year, identifiers, and availability.",
     {
-      query: z.string().describe("Search terms, e.g. 'machine learning entrepreneurship'."),
-      field: z
+      query: z
         .string()
+        .describe(
+          "Search terms, e.g. 'machine learning entrepreneurship'. Avoid commas in the query: Primo reads a comma as a field delimiter, so a comma in the terms can distort the search.",
+        ),
+      field: z
+        .enum(["any", "title", "creator", "sub", "isbn", "oclcnum"])
         .optional()
         .describe("Search field: any (default), title, creator, sub, isbn, oclcnum."),
       scope: z
-        .string()
+        .enum(["everything", "catalogue"])
         .optional()
         .describe("everything (local + subscribed databases, default) or catalogue (local only)."),
       sort_by: z
-        .string()
+        .enum(["rank", "date", "title"])
         .optional()
         .describe("rank (relevance, default), date (newest first), or title."),
-      limit: z.number().int().optional().describe("Number of results, 1-50 (default 10)."),
-      offset: z.number().int().optional().describe("Pagination offset (default 0)."),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(50)
+        .optional()
+        .describe("Number of results, 1-50 (default 10)."),
+      offset: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe("Pagination offset (default 0)."),
       resource_type: z
-        .string()
+        .enum(["books", "articles", "journals", "dissertations", "conference_proceedings"])
         .optional()
         .describe("Filter by type: books, articles, journals, dissertations, conference_proceedings."),
       date_from: z.string().optional().describe("Start year filter, YYYY."),
@@ -132,18 +145,13 @@ export function createServer(
     {
       record_ids: z.array(z.string()).describe("Primo record IDs to cite."),
       style: z
-        .string()
+        .enum(["apa7", "harvard", "chicago", "ieee", "vancouver"])
         .optional()
         .describe("Citation style: apa7 (default), harvard, chicago, ieee, vancouver."),
     },
     async (args) => {
       try {
         const style = args.style ?? "apa7";
-        if (!(CITATION_STYLES as readonly string[]).includes(style)) {
-          return textResult(
-            `Invalid citation style "${style}". Use one of: ${[...CITATION_STYLES].sort().join(", ")}`,
-          );
-        }
         const records = await client.getRecords(args.record_ids);
         if (records.length === 0) {
           return textResult("No records found for the provided IDs.");
@@ -164,16 +172,14 @@ export function createServer(
     "Export library records to reference manager formats (Zotero, Mendeley, EndNote).",
     {
       record_ids: z.array(z.string()).describe("Primo record IDs to export."),
-      format: z.string().optional().describe("Export format: bibtex (default), ris, csv."),
+      format: z
+        .enum(["bibtex", "ris", "csv"])
+        .optional()
+        .describe("Export format: bibtex (default), ris, csv."),
     },
     async (args) => {
       try {
         const format = args.format ?? "bibtex";
-        if (!EXPORT_FORMATS.includes(format)) {
-          return textResult(
-            `Invalid format "${format}". Use one of: ${[...EXPORT_FORMATS].sort().join(", ")}`,
-          );
-        }
         const records = await client.getRecords(args.record_ids);
         if (records.length === 0) {
           return textResult("No records found for the provided IDs.");
