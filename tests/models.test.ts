@@ -200,3 +200,54 @@ describe("recordFromApiDoc: Alma $$ subfield handling", () => {
     expect(multi.creators).toEqual(["Cushing, Harvey.", "Osler, William."]);
   });
 });
+
+describe("recordFromApiDoc: publisher and place of publication", () => {
+  it("prefers clean addata.pub / addata.cop when present", () => {
+    const rec = recordFromApiDoc({
+      context: "L",
+      pnx: {
+        control: { recordid: ["alma993490"] },
+        display: {
+          title: "Diseases of the heart and thoracic aorta",
+          publisher: "New York : Appleton & Co.",
+          place: "New York :",
+        },
+        addata: { cop: "New York", pub: "Appleton & Co." },
+      },
+    });
+    expect(rec.publisher).toBe("Appleton & Co.");
+    expect(rec.publisherPlace).toBe("New York");
+  });
+
+  it("splits display.publisher on the ISBD ' : ' when addata is absent", () => {
+    const rec = recordFromApiDoc({
+      pnx: { display: { publisher: "New York : Appleton & Co." } },
+    });
+    expect(rec.publisher).toBe("Appleton & Co.");
+    expect(rec.publisherPlace).toBe("New York");
+  });
+
+  it("treats a publisher with no ' : ' as publisher-only, no place", () => {
+    const rec = recordFromApiDoc({
+      pnx: { display: { publisher: "Charles C. Thomas" } },
+    });
+    expect(rec.publisher).toBe("Charles C. Thomas");
+    expect(rec.publisherPlace).toBe("");
+  });
+
+  it("keeps the first place segment when several precede the publisher", () => {
+    const rec = recordFromApiDoc({
+      pnx: { display: { publisher: "London ; New York : Routledge" } },
+    });
+    expect(rec.publisher).toBe("Routledge");
+    expect(rec.publisherPlace).toBe("London ; New York");
+  });
+
+  it("strips $$ subfields before splitting the publisher", () => {
+    const rec = recordFromApiDoc({
+      pnx: { display: { publisher: "New York : Appleton & Co.$$QAppleton" } },
+    });
+    expect(rec.publisher).toBe("Appleton & Co.");
+    expect(rec.publisherPlace).toBe("New York");
+  });
+});

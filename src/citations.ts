@@ -31,6 +31,18 @@ function yearOf(record: PrimoRecord): string {
   return record.creationDate ? record.creationDate.slice(0, 4) : "n.d.";
 }
 
+/**
+ * "Place: Publisher" when a place of publication is present, else the
+ * publisher alone. Used by the styles that retain place (Chicago, IEEE,
+ * Vancouver); APA 7 and Cite Them Right Harvard (13th ed.) omit place and use
+ * the plain publisher.
+ */
+function publisherWithPlace(record: PrimoRecord): string {
+  return record.publisherPlace
+    ? `${record.publisherPlace}: ${record.publisher}`
+    : record.publisher;
+}
+
 /** First-name words -> spaced initials with dots, e.g. "Jane Anne" -> "J. A." */
 function initialsDotted(first: string): string {
   const words = first.split(/\s+/).filter((w) => w.length > 0);
@@ -178,7 +190,7 @@ function citeBookChicago(r: PrimoRecord): string {
   const year = yearOf(r);
   const title = stripTrailingDots(r.title);
   const parts: string[] = [`${authors}. *${title}*.`];
-  if (r.publisher) parts.push(`${r.publisher}, ${year}.`);
+  if (r.publisher) parts.push(`${publisherWithPlace(r)}, ${year}.`);
   else parts.push(`${year}.`);
   return parts.join(" ");
 }
@@ -223,7 +235,7 @@ function citeBookIeee(r: PrimoRecord): string {
   const title = stripTrailingDots(r.title);
   const year = yearOf(r);
   const parts: string[] = [`${authors}, *${title}*.`];
-  if (r.publisher) parts.push(`${r.publisher}, ${year}.`);
+  if (r.publisher) parts.push(`${publisherWithPlace(r)}, ${year}.`);
   else parts.push(`${year}.`);
   return parts.join(" ");
 }
@@ -252,7 +264,7 @@ function citeBookVancouver(r: PrimoRecord): string {
   const title = stripTrailingDots(r.title);
   const year = yearOf(r);
   const parts: string[] = [`${authors}. ${title}.`];
-  if (r.publisher) parts.push(`${r.publisher}; ${year}.`);
+  if (r.publisher) parts.push(`${publisherWithPlace(r)}; ${year}.`);
   else parts.push(`${year}.`);
   return parts.join(" ");
 }

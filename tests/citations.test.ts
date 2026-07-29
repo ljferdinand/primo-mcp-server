@@ -13,6 +13,7 @@ function rec(partial: Partial<PrimoRecord>): PrimoRecord {
     creators: [],
     contributors: [],
     publisher: "",
+    publisherPlace: "",
     creationDate: "",
     sourceLabel: "",
     description: "",
@@ -61,6 +62,15 @@ const book = rec({
   publisher: "Uni Press",
 });
 
+const bookWithPlace = rec({
+  resourceType: "book",
+  creators: ["Bramwell, Byrom"],
+  creationDate: "1884",
+  title: "Diseases of the Heart",
+  publisher: "Appleton & Co.",
+  publisherPlace: "New York",
+});
+
 describe("formatCitation - exact style output (parity)", () => {
   it("APA 7 article", () => {
     expect(formatCitation(article, "apa7")).toBe(
@@ -95,6 +105,51 @@ describe("formatCitation - exact style output (parity)", () => {
   it("APA 7 book", () => {
     expect(formatCitation(book, "apa7")).toBe(
       "Author, A. B. (2019). *A Book*. Uni Press.",
+    );
+  });
+});
+
+describe("book place of publication (per-style)", () => {
+  it("APA 7 drops the place of publication", () => {
+    expect(formatCitation(bookWithPlace, "apa7")).toBe(
+      "Bramwell, B. (1884). *Diseases of the Heart*. Appleton & Co.",
+    );
+  });
+
+  it("Harvard (Cite Them Right 13th ed.) drops the place of publication", () => {
+    expect(formatCitation(bookWithPlace, "harvard")).toBe(
+      "Bramwell, B. (1884) *Diseases of the Heart*, Appleton & Co.",
+    );
+  });
+
+  it("Chicago keeps place as 'Place: Publisher'", () => {
+    expect(formatCitation(bookWithPlace, "chicago")).toBe(
+      "Bramwell, B.. *Diseases of the Heart*. New York: Appleton & Co., 1884.",
+    );
+  });
+
+  it("IEEE keeps place as 'City: Publisher'", () => {
+    expect(formatCitation(bookWithPlace, "ieee")).toBe(
+      "B. Bramwell, *Diseases of the Heart*. New York: Appleton & Co., 1884.",
+    );
+  });
+
+  it("Vancouver keeps place as 'Place: Publisher'", () => {
+    expect(formatCitation(bookWithPlace, "vancouver")).toBe(
+      "Bramwell B. Diseases of the Heart. New York: Appleton & Co.; 1884.",
+    );
+  });
+
+  it("falls back to publisher-only when no place is present", () => {
+    const noPlace = rec({
+      resourceType: "book",
+      creators: ["Bramwell, Byrom"],
+      creationDate: "1884",
+      title: "Diseases of the Heart",
+      publisher: "Appleton & Co.",
+    });
+    expect(formatCitation(noPlace, "chicago")).toBe(
+      "Bramwell, B.. *Diseases of the Heart*. Appleton & Co., 1884.",
     );
   });
 });

@@ -89,6 +89,8 @@ export interface PrimoRecord {
   creators: string[];
   contributors: string[];
   publisher: string;
+  /** Place of publication, split from the publisher; empty when unknown. */
+  publisherPlace?: string;
   creationDate: string;
   sourceLabel: string;
   description: string;
@@ -167,6 +169,31 @@ export function recordFromApiDoc(doc: Json): PrimoRecord {
     .map(stripSubfields)
     .filter((s) => s.length > 0);
 
+  // Publisher and place of publication. Alma addata carries clean, pre-split
+  // fields (pub = publisher, cop = place); prefer them. Otherwise fall back to
+  // the combined display.publisher, which uses the ISBD " : " delimiter between
+  // place and publisher (e.g. "New York : Appleton & Co."). $$ subfields are
+  // stripped first, as for the other display fields. The date is kept in
+  // creationDate; no attempt is made to strip a trailing date from the string.
+  const addataPublisher = stripSubfields(firstOrEmpty(addata.pub));
+  const addataPlace = stripSubfields(firstOrEmpty(addata.cop));
+  let publisher: string;
+  let publisherPlace: string;
+  if (addataPublisher) {
+    publisher = addataPublisher;
+    publisherPlace = addataPlace;
+  } else {
+    const combined = stripSubfields(firstOrEmpty(display.publisher));
+    const sep = combined.indexOf(" : ");
+    if (sep !== -1) {
+      publisherPlace = combined.slice(0, sep).trim();
+      publisher = combined.slice(sep + 3).trim();
+    } else {
+      publisher = combined;
+      publisherPlace = addataPlace;
+    }
+  }
+
   const peerReviewed = toList(display.lds50).some((x) =>
     x.toLowerCase().includes("peer_review"),
   );
@@ -191,7 +218,8 @@ export function recordFromApiDoc(doc: Json): PrimoRecord {
     contributors: toList(display.contributor)
       .map(stripSubfields)
       .filter((s) => s.length > 0),
-    publisher: stripSubfields(firstOrEmpty(display.publisher)),
+    publisher,
+    publisherPlace,
     creationDate: firstOrEmpty(display.creationdate) || firstOrEmpty(addata.date),
     sourceLabel: firstOrEmpty(display.source),
     description:
