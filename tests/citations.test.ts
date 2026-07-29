@@ -90,9 +90,9 @@ describe("formatCitation - exact style output (parity)", () => {
     );
   });
 
-  it("IEEE article", () => {
+  it("IEEE article (two authors joined with 'and', no serial comma)", () => {
     expect(formatCitation(article, "ieee")).toBe(
-      'J. A. Smith, and J. Doe, "Deep Learning," *Journal of AI*, vol. 12, no. 3, pp. 45-67, 2021. doi: 10.1/x.',
+      'J. A. Smith and J. Doe, "Deep Learning," *Journal of AI*, vol. 12, no. 3, pp. 45-67, 2021. doi: 10.1/x.',
     );
   });
 
@@ -213,6 +213,56 @@ describe("author-count rules", () => {
       creators: ["A, X", "B, Y", "C, Z", "D, W", "E, V", "F, U", "G, T"],
     });
     expect(formatCitation(r, "vancouver")).toContain(", et al");
+  });
+});
+
+describe("IEEE author count (six-author reference-list rule)", () => {
+  it("joins two authors with 'and' and no serial comma", () => {
+    const two = rec({
+      resourceType: "article",
+      title: "T",
+      creationDate: "2020",
+      journalTitle: "J",
+      creators: ["A, X", "B, Y"],
+    });
+    expect(formatCitation(two, "ieee")).toContain("X. A and Y. B");
+  });
+
+  it("lists all six authors with a serial comma before the final 'and'", () => {
+    const six = rec({
+      resourceType: "article",
+      title: "T",
+      creationDate: "2020",
+      journalTitle: "J",
+      creators: ["A, X", "B, Y", "C, Z", "D, W", "E, V", "F, U"],
+    });
+    expect(formatCitation(six, "ieee")).toContain(
+      "X. A, Y. B, Z. C, W. D, V. E, and U. F",
+    );
+    expect(formatCitation(six, "ieee")).not.toContain("et al.");
+  });
+
+  it("collapses seven or more authors to the first author + 'et al.'", () => {
+    const seven = rec({
+      resourceType: "article",
+      title: "T",
+      creationDate: "2020",
+      journalTitle: "J",
+      creators: ["A, X", "B, Y", "C, Z", "D, W", "E, V", "F, U", "G, T"],
+    });
+    expect(formatCitation(seven, "ieee")).toContain("X. A et al.");
+  });
+});
+
+describe("authors with no given name", () => {
+  it("omits the initials and the trailing comma (no stray dot)", () => {
+    const r = rec({
+      resourceType: "book",
+      title: "T",
+      creationDate: "2020",
+      creators: ["Smith,"],
+    });
+    expect(formatCitation(r, "apa7")).toBe("Smith (2020). *T*.");
   });
 });
 
