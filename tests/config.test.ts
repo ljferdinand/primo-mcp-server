@@ -1,14 +1,18 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { loadConfig, ConfigError } from "../src/config.js";
+import { loadConfig } from "../src/config.js";
 
+// PittCat build: every value has a built-in default, so nothing is required and
+// loadConfig never throws. These tests delete the throwaway vars that
+// tests/setup.ts provides, then check the baked-in defaults and overrides.
 const TOUCHED = [
   "PRIMO_BASE_URL",
   "PRIMO_VID",
   "PRIMO_INSTITUTION_NAME",
   "PRIMO_DISCOVERY_NAME",
+  "PRIMO_TAB_CATALOGUE",
 ] as const;
 
-describe("loadConfig", () => {
+describe("loadConfig (PittCat build)", () => {
   const saved: Record<string, string | undefined> = {};
   for (const k of TOUCHED) saved[k] = process.env[k];
 
@@ -19,34 +23,35 @@ describe("loadConfig", () => {
     }
   });
 
-  it("loads when the required vars are set and applies neutral defaults", () => {
-    process.env.PRIMO_BASE_URL = "https://x.primo.example/primaws/rest/pub";
-    process.env.PRIMO_VID = "01X_INST:X_VIEW";
-    delete process.env.PRIMO_INSTITUTION_NAME;
-    delete process.env.PRIMO_DISCOVERY_NAME;
+  it("applies the built-in PittCat defaults when nothing is set", () => {
+    for (const k of TOUCHED) delete process.env[k];
 
     const cfg = loadConfig();
-    expect(cfg.baseUrl).toBe("https://x.primo.example/primaws/rest/pub");
-    expect(cfg.vid).toBe("01X_INST:X_VIEW");
-    expect(cfg.institutionName).toBe("the library catalogue");
-    // discoveryName falls back to institutionName when unset.
-    expect(cfg.discoveryName).toBe("the library catalogue");
+    expect(cfg.baseUrl).toBe(
+      "https://pitt.primo.exlibrisgroup.com/primaws/rest/pub",
+    );
+    expect(cfg.vid).toBe("01PITT_INST:01PITT_INST");
+    expect(cfg.institutionName).toBe("University of Pittsburgh");
+    expect(cfg.discoveryName).toBe("PittCat");
+    expect(cfg.tabCatalogue).toBe("LibraryCatalog");
     // institutionCode is empty; the client derives it from the VID prefix.
     expect(cfg.institutionCode).toBe("");
   });
 
-  it("throws ConfigError naming the missing required vars", () => {
+  it("does not require any variable (no fail-fast on this build)", () => {
     delete process.env.PRIMO_BASE_URL;
     delete process.env.PRIMO_VID;
-    let error: unknown;
-    try {
-      loadConfig();
-    } catch (e) {
-      error = e;
-    }
-    expect(error).toBeInstanceOf(ConfigError);
-    const msg = (error as Error).message;
-    expect(msg).toContain("PRIMO_BASE_URL");
-    expect(msg).toContain("PRIMO_VID");
+    expect(() => loadConfig()).not.toThrow();
+  });
+
+  it("lets the environment override a baked-in default", () => {
+    process.env.PRIMO_BASE_URL = "https://x.primo.example/primaws/rest/pub";
+    process.env.PRIMO_VID = "01X_INST:X_VIEW";
+    process.env.PRIMO_DISCOVERY_NAME = "OtherCat";
+
+    const cfg = loadConfig();
+    expect(cfg.baseUrl).toBe("https://x.primo.example/primaws/rest/pub");
+    expect(cfg.vid).toBe("01X_INST:X_VIEW");
+    expect(cfg.discoveryName).toBe("OtherCat");
   });
 });

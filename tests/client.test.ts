@@ -3,7 +3,7 @@ import { PrimoClient, PrimoApiError } from "../src/client.js";
 import { loadConfig } from "../src/config.js";
 
 // PRIMO_BASE_URL and PRIMO_VID come from tests/setup.ts; the remaining PRIMO_
-// variables use their built-in defaults.
+// variables use their built-in defaults (PittCat on this branch).
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -119,7 +119,7 @@ describe("PrimoClient.search", () => {
     });
     await client.search({ query: "x", scope: "catalogue" });
     const u = new URL(captured);
-    expect(u.searchParams.get("tab")).toBe("Catalogue");
+    expect(u.searchParams.get("tab")).toBe("LibraryCatalog");
     expect(u.searchParams.get("scope")).toBe("MyInstitution");
   });
 
