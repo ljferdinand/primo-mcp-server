@@ -1,12 +1,12 @@
 /**
- * Configuration for the Primo MCP server (Node port).
+ * Configuration for the Primo MCP server (PittCat build).
  *
- * PRIMO_BASE_URL and PRIMO_VID are required and have no defaults; loadConfig
- * throws a ConfigError naming any that are missing, so the server fails fast at
- * startup with an actionable message. The remaining values are optional and
- * fall back to the defaults below (the tab/scope names use the common Primo VE
- * values; confirm them against your own view if it differs). Override any value
- * via environment variables with the PRIMO_ prefix.
+ * This build ships with University of Pittsburgh / PittCat values as the
+ * built-in defaults, so the server runs with no configuration. Every value is
+ * optional and overridable via a PRIMO_-prefixed environment variable; set
+ * PRIMO_BASE_URL and PRIMO_VID to point the server at a different Primo view.
+ * (Deliberate, branch-scoped reversal of the canonical build's no-defaults
+ * policy; the canonical build on main requires those two and has no defaults.)
  */
 
 export interface PrimoConfig {
@@ -20,7 +20,7 @@ export interface PrimoConfig {
    */
   institutionCode: string;
   institutionName: string;
-  /** Discovery brand shown to users, e.g. "OneSearch", "PittCat". */
+  /** Discovery brand shown to users, e.g. "PittCat". */
   discoveryName: string;
   tabEverything: string;
   tabCatalogue: string;
@@ -37,14 +37,18 @@ export interface PrimoConfig {
    * Default for Primo's pcAvailability search parameter. When true the search
    * is "expanded" and includes records the institution has no full-text access
    * to; when false it is restricted to currently-available material. Defaults
-   * to true to preserve the port's original behaviour; a per-call
-   * include_unavailable argument overrides it. Set PRIMO_INCLUDE_UNAVAILABLE to
-   * "false" to make restricted-to-available the default.
+   * to true; a per-call include_unavailable argument overrides it. Set
+   * PRIMO_INCLUDE_UNAVAILABLE to "false" to make restricted-to-available the
+   * default.
    */
   includeUnavailable: boolean;
 }
 
-/** Thrown when required configuration is missing, for a clean startup error. */
+/**
+ * Retained for API compatibility with the canonical build (index.ts imports it
+ * for its startup catch). The PittCat build has defaults for every value, so
+ * loadConfig does not throw it.
+ */
 export class ConfigError extends Error {
   constructor(message: string) {
     super(message);
@@ -73,47 +77,28 @@ function envBool(name: string, fallback: boolean): boolean {
   return fallback;
 }
 
-/** Read a required PRIMO_ variable, recording it as missing if unset/empty. */
-function envRequired(name: string, missing: string[]): string {
-  const v = process.env[`PRIMO_${name}`];
-  if (v !== undefined && v.trim() !== "") return v;
-  missing.push(`PRIMO_${name}`);
-  return "";
-}
-
 export function loadConfig(): PrimoConfig {
-  const missing: string[] = [];
-  const baseUrl = envRequired("BASE_URL", missing);
-  const vid = envRequired("VID", missing);
-  if (missing.length > 0) {
-    throw new ConfigError(
-      `Missing required configuration: ${missing.join(", ")}. ` +
-        "Set them to your institution's Primo values before starting the server. " +
-        "PRIMO_BASE_URL is your Primo VE public API base ending in /primaws/rest/pub; " +
-        "PRIMO_VID is your view ID, e.g. 01INST_CODE:VIEW_CODE. " +
-        'See "Finding your Primo settings" in the README for how to read both off your discovery URL.',
-    );
-  }
+  const institutionName = envStr("INSTITUTION_NAME", "University of Pittsburgh");
 
-  const institutionName = envStr("INSTITUTION_NAME", "the library catalogue");
-
-  // PRIMO_REQUEST_TIMEOUT is expressed in seconds (parity with the Python
+  // PRIMO_REQUEST_TIMEOUT is expressed in seconds (parity with the
   // .env.example); stored internally as milliseconds for fetch/AbortController.
   const timeoutSeconds = envNum("REQUEST_TIMEOUT", 30);
 
   return {
-    baseUrl,
-    vid,
-    // Empty by default: the client derives it from the VID prefix. Set
-    // PRIMO_INSTITUTION_CODE only if your guest-token institution code
-    // differs from the VID prefix.
+    // PittCat defaults; override with PRIMO_BASE_URL / PRIMO_VID for another view.
+    baseUrl: envStr(
+      "BASE_URL",
+      "https://pitt.primo.exlibrisgroup.com/primaws/rest/pub",
+    ),
+    vid: envStr("VID", "01PITT_INST:01PITT_INST"),
+    // Empty by default: the client derives it from the VID prefix
+    // ("01PITT_INST"). Set PRIMO_INSTITUTION_CODE only if the guest-token
+    // institution code differs from the VID prefix.
     institutionCode: envStr("INSTITUTION_CODE", ""),
     institutionName,
-    // Defaults to the institution name per the 2026-07-28 decision;
-    // set PRIMO_DISCOVERY_NAME to the discovery brand (e.g. "PittCat").
-    discoveryName: envStr("DISCOVERY_NAME", institutionName),
+    discoveryName: envStr("DISCOVERY_NAME", "PittCat"),
     tabEverything: envStr("TAB_EVERYTHING", "Everything"),
-    tabCatalogue: envStr("TAB_CATALOGUE", "Catalogue"),
+    tabCatalogue: envStr("TAB_CATALOGUE", "LibraryCatalog"),
     scopeCombined: envStr("SCOPE_COMBINED", "MyInst_and_CI"),
     scopeLocal: envStr("SCOPE_LOCAL", "MyInstitution"),
     requestTimeoutMs: Math.round(timeoutSeconds * 1000),
