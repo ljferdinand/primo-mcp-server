@@ -1,10 +1,12 @@
-__pycache__/
-*.pyc
-*.pyo
-*.egg-info/
+# Dependencies
+node_modules/
+
+# Build output
 dist/
-build/
-.eggs/
-.pytest_cache/
+*.tsbuildinfo
+
+# Environment (.env.example stays tracked)
 .env
-*.egg
+
+# OS
+.DS_Store
