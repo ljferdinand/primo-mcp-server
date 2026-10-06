@@ -6,12 +6,16 @@ holds the original Python until parity is signed off.
 
 ## Architecture
 
-- **Framework:** `@modelcontextprotocol/sdk` (`McpServer`)
-- **Transport:** stdio
+- **Framework:** `@modelcontextprotocol/server` v2 (`McpServer`), MCP protocol
+  revision `2026-07-28`
+- **Transport:** stdio via `serveStdio(factory)` -- serves both a modern
+  (`2026-07-28`, stateless) opening and a 2025-era `initialize` handshake from
+  the same factory
 - **HTTP client:** global `fetch` (undici), with an `AbortController` timeout
 - **Config:** environment variables with the `PRIMO_` prefix (see `config.ts`);
   `PRIMO_BASE_URL` and `PRIMO_VID` are required and have no defaults
-- **Validation:** `zod` for tool input schemas
+- **Validation:** `zod` v4 for tool input schemas (passed as a `z.object({...})`
+  to `server.registerTool(name, { description, inputSchema }, handler)`)
 
 ## Key files
 
@@ -52,7 +56,7 @@ defaults in `config.ts`.
 - **Governance boundary:** public Primo REST API (`/primaws/rest/pub`) plus a
   view ID and an anonymous guest token only. No per-user login, no authenticated
   endpoints, no API keys.
-- TypeScript strict mode; ESM (`type: module`); Node 18+.
+- TypeScript strict mode; ESM (`type: module`); Node 20+ (required by the v2 SDK).
 - CSV exports carry a UTF-8 BOM and CRLF line endings for Excel.
 - Behavioural parity with the Python is the baseline; deliberate deviations (the
   `$$` subfield strip, per-style place of publication, terminal-period

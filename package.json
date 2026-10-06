@@ -11,7 +11,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
     "build": "tsc",
@@ -21,11 +21,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/server": "^2.3.1",
     "dotenv": "^16.4.5",
-    "zod": "^3.23.8"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.3.1",
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
