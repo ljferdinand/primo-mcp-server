@@ -10,7 +10,7 @@
 import { config as loadDotenv } from "dotenv";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { loadConfig, ConfigError } from "./config.js";
 import { createServer } from "./server.js";
 
@@ -19,14 +19,21 @@ import { createServer } from "./server.js";
 // working directory (Claude Desktop may start the server from elsewhere).
 loadDotenv({ path: join(dirname(fileURLToPath(import.meta.url)), "..", ".env") });
 
-async function main(): Promise<void> {
+function main(): void {
   const config = loadConfig();
-  const server = createServer(config);
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  // serveStdio owns the per-connection lifecycle and the protocol-era
+  // decision: it serves a modern (2026-07-28, stateless) opening or a
+  // 2025-era `initialize` handshake from the same factory, building one
+  // server instance per connection.
+  const handle = serveStdio(() => createServer(config));
+  const shutdown = (): void => void handle.close();
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
-main().catch((err: unknown) => {
+try {
+  main();
+} catch (err: unknown) {
   if (err instanceof ConfigError) {
     // Missing/invalid configuration: print the actionable message, not a stack.
     console.error(`primo-mcp-server: ${err.message}`);
@@ -34,4 +41,4 @@ main().catch((err: unknown) => {
     console.error("Fatal error starting primo-mcp-server:", err);
   }
   process.exit(1);
-});
+}

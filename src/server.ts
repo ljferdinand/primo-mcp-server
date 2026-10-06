@@ -3,7 +3,7 @@
  * Registers all five tools: primo_search, primo_get_record, primo_suggest,
  * primo_cite, primo_export.
  */
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import type { PrimoConfig } from "./config.js";
 import { PrimoApiError, PrimoClient } from "./client.js";
@@ -30,51 +30,54 @@ export function createServer(
 ): McpServer {
   const server = new McpServer({ name: "primo", version: "0.1.0" });
 
-  server.tool(
+  server.registerTool(
     "primo_search",
-    "Search the university library catalogue and subscribed databases (ProQuest, Elsevier, Crossref, Gale, Springer, IEEE, etc.) via the Ex Libris Primo discovery API. Returns a compact list with title, authors, year, identifiers, and availability.",
     {
-      query: z
-        .string()
-        .describe(
-          "Search terms, e.g. 'machine learning entrepreneurship'. Avoid commas in the query: Primo reads a comma as a field delimiter, so a comma in the terms can distort the search.",
-        ),
-      field: z
-        .enum(["any", "title", "creator", "sub", "isbn", "oclcnum"])
-        .optional()
-        .describe("Search field: any (default), title, creator, sub, isbn, oclcnum."),
-      scope: z
-        .enum(["everything", "catalogue"])
-        .optional()
-        .describe("everything (local + subscribed databases, default) or catalogue (local only)."),
-      sort_by: z
-        .enum(["rank", "date", "title"])
-        .optional()
-        .describe("rank (relevance, default), date (newest first), or title."),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(50)
-        .optional()
-        .describe("Number of results, 1-50 (default 10)."),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .optional()
-        .describe("Pagination offset (default 0)."),
-      resource_type: z
-        .enum(["books", "articles", "journals", "dissertations", "conference_proceedings"])
-        .optional()
-        .describe("Filter by type: books, articles, journals, dissertations, conference_proceedings."),
-      date_from: z.string().optional().describe("Start year filter, YYYY."),
-      date_to: z.string().optional().describe("End year filter, YYYY."),
-      peer_reviewed: z.boolean().optional().describe("Set true to show only peer-reviewed items."),
-      include_unavailable: z
-        .boolean()
-        .optional()
-        .describe("Include records the library has no full-text access to (Primo's expanded search). Defaults to broad (included); set false to restrict results to currently-available material."),
+      description:
+        "Search the university library catalogue and subscribed databases (ProQuest, Elsevier, Crossref, Gale, Springer, IEEE, etc.) via the Ex Libris Primo discovery API. Returns a compact list with title, authors, year, identifiers, and availability.",
+      inputSchema: z.object({
+        query: z
+          .string()
+          .describe(
+            "Search terms, e.g. 'machine learning entrepreneurship'. Avoid commas in the query: Primo reads a comma as a field delimiter, so a comma in the terms can distort the search.",
+          ),
+        field: z
+          .enum(["any", "title", "creator", "sub", "isbn", "oclcnum"])
+          .optional()
+          .describe("Search field: any (default), title, creator, sub, isbn, oclcnum."),
+        scope: z
+          .enum(["everything", "catalogue"])
+          .optional()
+          .describe("everything (local + subscribed databases, default) or catalogue (local only)."),
+        sort_by: z
+          .enum(["rank", "date", "title"])
+          .optional()
+          .describe("rank (relevance, default), date (newest first), or title."),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .describe("Number of results, 1-50 (default 10)."),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe("Pagination offset (default 0)."),
+        resource_type: z
+          .enum(["books", "articles", "journals", "dissertations", "conference_proceedings"])
+          .optional()
+          .describe("Filter by type: books, articles, journals, dissertations, conference_proceedings."),
+        date_from: z.string().optional().describe("Start year filter, YYYY."),
+        date_to: z.string().optional().describe("End year filter, YYYY."),
+        peer_reviewed: z.boolean().optional().describe("Set true to show only peer-reviewed items."),
+        include_unavailable: z
+          .boolean()
+          .optional()
+          .describe("Include records the library has no full-text access to (Primo's expanded search). Defaults to broad (included); set false to restrict results to currently-available material."),
+      }),
     },
     async (args) => {
       try {
@@ -100,13 +103,16 @@ export function createServer(
     },
   );
 
-  server.tool(
+  server.registerTool(
     "primo_get_record",
-    "Get full details for a single library record. Use a record ID from primo_search results to fetch complete metadata: abstract, all authors, subjects, identifiers, and availability.",
     {
-      record_id: z
-        .string()
-        .describe("The Primo record ID, e.g. 'alma991234567890' or 'cdi_crossref_primary_10_1234'."),
+      description:
+        "Get full details for a single library record. Use a record ID from primo_search results to fetch complete metadata: abstract, all authors, subjects, identifiers, and availability.",
+      inputSchema: z.object({
+        record_id: z
+          .string()
+          .describe("The Primo record ID, e.g. 'alma991234567890' or 'cdi_crossref_primary_10_1234'."),
+      }),
     },
     async (args) => {
       try {
@@ -123,11 +129,14 @@ export function createServer(
     },
   );
 
-  server.tool(
+  server.registerTool(
     "primo_suggest",
-    "Get autocomplete suggestions for a search term. Useful for refining searches or checking subject headings before running a full search.",
     {
-      query: z.string().describe("Partial search term, e.g. 'entrepre' or 'machine lear'."),
+      description:
+        "Get autocomplete suggestions for a search term. Useful for refining searches or checking subject headings before running a full search.",
+      inputSchema: z.object({
+        query: z.string().describe("Partial search term, e.g. 'entrepre' or 'machine lear'."),
+      }),
     },
     async (args) => {
       try {
@@ -139,15 +148,18 @@ export function createServer(
     },
   );
 
-  server.tool(
+  server.registerTool(
     "primo_cite",
-    "Generate formatted citations for library records. Always verify generated citations before submission.",
     {
-      record_ids: z.array(z.string()).describe("Primo record IDs to cite."),
-      style: z
-        .enum(["apa7", "harvard", "chicago", "ieee", "vancouver"])
-        .optional()
-        .describe("Citation style: apa7 (default), harvard, chicago, ieee, vancouver."),
+      description:
+        "Generate formatted citations for library records. Always verify generated citations before submission.",
+      inputSchema: z.object({
+        record_ids: z.array(z.string()).describe("Primo record IDs to cite."),
+        style: z
+          .enum(["apa7", "harvard", "chicago", "ieee", "vancouver"])
+          .optional()
+          .describe("Citation style: apa7 (default), harvard, chicago, ieee, vancouver."),
+      }),
     },
     async (args) => {
       try {
@@ -167,15 +179,18 @@ export function createServer(
     },
   );
 
-  server.tool(
+  server.registerTool(
     "primo_export",
-    "Export library records to reference manager formats (Zotero, Mendeley, EndNote).",
     {
-      record_ids: z.array(z.string()).describe("Primo record IDs to export."),
-      format: z
-        .enum(["bibtex", "ris", "csv"])
-        .optional()
-        .describe("Export format: bibtex (default), ris, csv."),
+      description:
+        "Export library records to reference manager formats (Zotero, Mendeley, EndNote).",
+      inputSchema: z.object({
+        record_ids: z.array(z.string()).describe("Primo record IDs to export."),
+        format: z
+          .enum(["bibtex", "ris", "csv"])
+          .optional()
+          .describe("Export format: bibtex (default), ris, csv."),
+      }),
     },
     async (args) => {
       try {

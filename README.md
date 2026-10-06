@@ -26,7 +26,7 @@ key. This is the same access class as an ordinary catalogue search in a browser.
 
 ## Before you start
 
-You need two things installed: **Node.js 18 or newer** and **git**. If you have
+You need two things installed: **Node.js 20 or newer** and **git**. If you have
 never set up a Node project before, this section gets you there; if you already
 have both, skip to Install and build.
 
@@ -38,8 +38,8 @@ node --version
 git --version
 ```
 
-If `node` prints v18 or higher and `git` prints a version, you are set. If
-either is missing or Node is older than 18, install it:
+If `node` prints v20 or higher and `git` prints a version, you are set. If
+either is missing or Node is older than 20, install it:
 
 - **macOS:** install [Homebrew](https://brew.sh) and run `brew install node git`,
   or download the Node LTS installer from [nodejs.org](https://nodejs.org/) and
@@ -49,7 +49,7 @@ either is missing or Node is older than 18, install it:
   Or, with winget: `winget install OpenJS.NodeJS.LTS Git.Git`.
 - **Linux:** use your package manager, for example
   `sudo apt install nodejs npm git` on Debian/Ubuntu. If your distribution's
-  Node is older than 18, install the current LTS from
+  Node is older than 20, install the current LTS from
   [nodejs.org](https://nodejs.org/) or via [nvm](https://github.com/nvm-sh/nvm).
 
 npm ships with Node, so there is nothing extra to install for it.
