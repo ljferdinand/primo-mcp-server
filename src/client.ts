@@ -131,7 +131,9 @@ export class PrimoClient {
       offset: String(offset),
       limit: String(limit),
       lang: cfg.language,
-      sortby: sortBy,
+      // Primo reads `sort` (values rank, date_d, date_a, title, author) and
+      // silently ignores `sortby`. Our "date" means newest first.
+      sort: sortBy === "date" ? "date_d" : sortBy,
       // pcAvailability=true is Primo's "expanded" search (includes records with
       // no full-text access); false restricts to currently-available material.
       pcAvailability: includeUnavailable ? "true" : "false",

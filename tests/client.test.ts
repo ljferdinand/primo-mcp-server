@@ -111,6 +111,20 @@ describe("PrimoClient.search", () => {
     expect(qInclude).toContain("facet_searchcreationdate,exact,[2019 TO 2019]");
   });
 
+  it("sends sort (not sortby), mapping date to date_d", async () => {
+    const captured: string[] = [];
+    const client = makeClient(async (url) => {
+      captured.push(url);
+      return jsonResponse({ info: {}, docs: [] });
+    });
+    await client.search({ query: "x" });
+    await client.search({ query: "x", sortBy: "date" });
+    await client.search({ query: "x", sortBy: "title" });
+    const sorts = captured.map((url) => new URL(url).searchParams);
+    expect(sorts.map((p) => p.get("sort"))).toEqual(["rank", "date_d", "title"]);
+    expect(sorts.every((p) => !p.has("sortby"))).toBe(true);
+  });
+
   it("uses catalogue tab/scope when scope=catalogue", async () => {
     let captured = "";
     const client = makeClient(async (url) => {
